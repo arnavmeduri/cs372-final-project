@@ -1,0 +1,133 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Environment files with secrets/PII
+.env
+.env.local
+.env.*.local
+*.env
+.envrc
+
+# Keep example env file
+!.env.example
+
+# API keys and tokens (extra safety)
+*_key.txt
+*_token.txt
+*_secret.txt
+api_keys/
+secrets/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Pickle files
+*.pkl
+*.pickle
+
+# FAISS index (regenerated at runtime)
+faiss_index/
+*.faiss
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+logs/
+
+# Large video files (store links in README instead)
+videos/*.mp4
+videos/*.mov
+videos/*.avi
+videos/*.mkv
+videos/*.webm
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Model files (too large for git, downloaded separately)
+*.pt
+*.bin
+*.safetensors
+*.onnx
+*.gguf
+models/lora_adapter/*.bin
+models/lora_adapter/*.safetensors
+
+# HuggingFace cache
+.cache/
+~/.cache/huggingface/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Output files (generated at runtime)
+output/
+*.txt
+!requirements.txt
+*.md.backup
+*.md.tmp
+
+# JSON files (be selective)
+!data/training/finbrief_training.json
+!models/lora_adapter/*.json
+!package.json
+
+# Training artifacts
+wandb/
+runs/
+checkpoints/
+
+# Coverage reports
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Course materials (not part of submission)
+final_handout.html
+
+# Data files with potential PII
+data/*.csv
+data/*.xlsx
+data/raw/
+data/cache/
+
+# macOS
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Desktop.ini
+$RECYCLE.BIN/
+
+# Workspace and IDE
+*.code-workspace
