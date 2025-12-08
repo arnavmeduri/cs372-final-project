@@ -135,14 +135,11 @@ class RAGSystem:
     def add_sec_filings(self, filings: List[Dict]):
         """
         Add SEC filings to the document store with section extraction.
-        
+
         Args:
             filings: List of filing dictionaries with 'content', 'filing_date', 'url', etc.
+                    EdgarToolsClient filings include pre-extracted 'sections' dict.
         """
-        from .sec_edgar_client import SECEdgarClient
-        
-        sec_client = SECEdgarClient()
-        
         for filing_idx, filing in enumerate(filings):
             content = filing.get('content', '')
 
@@ -159,16 +156,63 @@ class RAGSystem:
             max_content_length = 200000
             if len(content) > max_content_length:
                 content = content[:max_content_length]
-            
-            # Try to extract sections first
+
+            # Try to use pre-extracted sections first
             sections_extracted = {}
-            section_list = ['item_1', 'item_1a', 'item_7', 'item_7a', 'item_8']
-            
-            for section in section_list:
-                section_content = sec_client.extract_section(content, section)
-                if section_content and len(section_content) > 100:  # Valid section
-                    sections_extracted[section] = section_content
-            
+
+            # Case 1: Single section filing (from generate_rich_analysis validated sections)
+            # These have 'section' key (singular) indicating it's already a single section
+            if 'section' in filing and filing['section']:
+                section_name = filing['section']
+                # Map friendly names to item codes
+                section_mapping = {
+                    'business': 'item_1',
+                    'risk_factors': 'item_1a',
+                    'management_discussion': 'item_7',
+                    'market_risk': 'item_7a',
+                    'financial_statements': 'item_8'
+                }
+                item_code = section_mapping.get(section_name, section_name)
+                sections_extracted[item_code] = content
+                print(f"✅ [PATH 1] Using validated single section: {section_name} → {item_code} ({len(content):,} chars)")
+
+            # Case 2: Pre-extracted sections (from EdgarToolsClient)
+            elif 'sections' in filing and filing['sections']:
+                sections_extracted = filing['sections']
+                total_chars = sum(len(s) for s in sections_extracted.values())
+                print(f"✅ [PATH 2] Using pre-extracted sections from EdgarToolsClient:")
+                for sec_name, sec_content in sections_extracted.items():
+                    print(f"    - {sec_name}: {len(sec_content):,} chars")
+                print(f"    Total: {len(sections_extracted)} sections, {total_chars:,} chars")
+
+            # Case 3: Legacy Fallback - Manual extraction (old SECEdgarClient or missing sections)
+            else:
+                print(f"⚠️  [PATH 3] LEGACY FALLBACK - No pre-extracted sections found!")
+                print(f"    This happens when:")
+                print(f"    - Using old SECEdgarClient (pre-edgartools)")
+                print(f"    - EdgarToolsClient failed to extract sections")
+                print(f"    - Filing format is unusual/unsupported")
+                print(f"    Attempting manual regex-based extraction (unreliable)...")
+
+                from .sec_edgar_client import SECEdgarClient
+                sec_client = SECEdgarClient()
+
+                section_list = ['item_1', 'item_1a', 'item_7', 'item_7a', 'item_8']
+
+                for section in section_list:
+                    section_content = sec_client.extract_section(content, section)
+                    if section_content and len(section_content) > 100:  # Valid section
+                        sections_extracted[section] = section_content
+
+                if sections_extracted:
+                    print(f"✅ Manual extraction succeeded: {list(sections_extracted.keys())}")
+                    for sec_name, sec_content in sections_extracted.items():
+                        print(f"    - {sec_name}: {len(sec_content):,} chars")
+                else:
+                    print(f"❌ WARNING: Manual extraction FAILED - no sections found!")
+                    print(f"    Expected sections: {section_list}")
+                    print(f"    This will result in poor quality analysis!")
+
             # If we successfully extracted sections, use them
             if sections_extracted:
                 for section_name, section_content in sections_extracted.items():
@@ -191,16 +235,22 @@ class RAGSystem:
                         self.documents.append(doc)
             else:
                 # Extraction failed - chunk entire document and infer sections
+                print(f"❌ FALLBACK TO CHUNKING - All section extraction methods failed!")
+                print(f"    Will chunk entire document and infer sections from keywords.")
+                print(f"    ⚠️  WARNING: This produces LOWER QUALITY results than proper section extraction!")
+                print(f"    Document length: {len(content):,} chars")
+
                 chunks = self.chunk_text(content, chunk_size=800, overlap=150)
-                
+                print(f"    Created {len(chunks)} chunks from full document")
+
                 for chunk_idx, chunk in enumerate(chunks):
                     if len(self.documents) >= self.max_documents:
-                        print(f"Warning: Document limit ({self.max_documents}) reached. Skipping remaining chunks.")
+                        print(f"⚠️  Document limit ({self.max_documents}) reached. Skipping remaining chunks.")
                         return
-                    
+
                     # Infer section from content
                     inferred_section = self._infer_section_from_content(chunk)
-                    
+
                     doc = DocumentChunk(
                         text=chunk,
                         source_type='sec_filing',
@@ -211,6 +261,8 @@ class RAGSystem:
                         section=inferred_section
                     )
                     self.documents.append(doc)
+
+                print(f"    ⚠️  Using keyword-based section inference (unreliable)")
     
     def add_news_articles(self, articles: List[Dict]):
         """
