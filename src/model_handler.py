@@ -323,7 +323,7 @@ class FinBriefModel:
             Generated analysis
         """
         # Truncate context if too long (keep most relevant parts)
-        max_context_chars = 2000  # Reduced for memory efficiency
+        max_context_chars = 16000  # Reduced for memory efficiency
         if len(context) > max_context_chars:
             context = context[:max_context_chars] + "\n[Context truncated for processing...]"
         

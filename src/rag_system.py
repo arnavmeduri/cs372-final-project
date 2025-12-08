@@ -58,7 +58,7 @@ class RAGSystem:
         self.index_built = False
         
         # Limit documents for memory efficiency
-        self.max_documents = 100
+        self.max_documents = 500
     
     def chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
         """
@@ -145,6 +145,12 @@ class RAGSystem:
         
         for filing_idx, filing in enumerate(filings):
             content = filing.get('content', '')
+
+            # Skip XBRL metadata prefix (first ~25K chars are usually XBRL tags + TOC)
+            # This prevents polluting the vector index with machine-readable metadata
+            XBRL_PREFIX_LENGTH = 25000
+            if len(content) > XBRL_PREFIX_LENGTH:
+                content = content[XBRL_PREFIX_LENGTH:]
             if not content:
                 continue
             
@@ -165,7 +171,7 @@ class RAGSystem:
             # If we successfully extracted sections, use them
             if sections_extracted:
                 for section_name, section_content in sections_extracted.items():
-                    chunks = self.chunk_text(section_content, chunk_size=800, overlap=50)
+                    chunks = self.chunk_text(section_content, chunk_size=800, overlap=150)
                     
                     for chunk_idx, chunk in enumerate(chunks):
                         if len(self.documents) >= self.max_documents:
@@ -184,7 +190,7 @@ class RAGSystem:
                         self.documents.append(doc)
             else:
                 # Extraction failed - chunk entire document and infer sections
-                chunks = self.chunk_text(content, chunk_size=800, overlap=50)
+                chunks = self.chunk_text(content, chunk_size=800, overlap=150)
                 
                 for chunk_idx, chunk in enumerate(chunks):
                     if len(self.documents) >= self.max_documents:
@@ -222,7 +228,7 @@ class RAGSystem:
             if not combined.strip():
                 continue
             
-            chunks = self.chunk_text(combined, chunk_size=800, overlap=50)
+            chunks = self.chunk_text(combined, chunk_size=800, overlap=150)
             
             for chunk_idx, chunk in enumerate(chunks):
                 if len(self.documents) >= self.max_documents:
@@ -345,6 +351,10 @@ class RAGSystem:
             Tuple of (context_text, citations_list)
         """
         retrieved = self.retrieve(query, top_k=top_k * 2 if source_types else top_k)
+
+        # Filter by minimum similarity threshold
+        MIN_SIMILARITY = 0.3
+        retrieved = [(doc, score) for doc, score in retrieved if score >= MIN_SIMILARITY]
         
         # Filter by source type if specified
         if source_types:

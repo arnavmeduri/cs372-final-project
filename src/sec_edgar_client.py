@@ -6,17 +6,18 @@ import requests
 import time
 from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
-import html2text
 from datetime import datetime
 import re
 
 
 # SEC filing section patterns for extraction
 SEC_SECTION_PATTERNS = {
-    'item_1': r'(?:item\s*1[.\s]|part\s*i[.\s].*?item\s*1)',  # Business
-    'item_1a': r'item\s*1a[.\s]',  # Risk Factors
-    'item_7': r'item\s*7[.\s]',  # MD&A
-    'item_8': r'item\s*8[.\s]',  # Financial Statements
+    'item_1': r'item\s*1[.\s]+business',  # Business
+    'item_1a': r'item\s*1a[.\s]+risk\s+factors',  # Risk Factors
+    'item_1b': r'item\s*1b[.\s]',  # Unresolved Staff Comments
+    'item_7': r'item\s*7[.\s]+management',  # MD&A
+    'item_7a': r'item\s*7a[.\s]',  # Quantitative and Qualitative Disclosures
+    'item_8': r'item\s*8[.\s]+financial',  # Financial Statements
 }
 
 
@@ -249,38 +250,80 @@ class SECEdgarClient:
     
     def extract_section(self, content: str, section: str) -> Optional[str]:
         """
-        Extract a specific section from a filing.
-        
+        Extract a specific section from a filing, skipping the Table of Contents.
+
         Args:
             content: Full filing content
             section: Section to extract ('item_1', 'item_1a', 'item_7', 'item_8')
-            
+
         Returns:
             Extracted section text or None
         """
         if section not in SEC_SECTION_PATTERNS:
             return None
-        
+
         pattern = SEC_SECTION_PATTERNS[section]
         content_lower = content.lower()
-        
-        # Find section start
-        match = re.search(pattern, content_lower)
+
+        # Strategy: Find PART I or PART II to skip TOC, then find the section
+        # Most 10-Ks have: TOC -> Forward-looking statements -> PART I -> Item 1
+
+        # Find where actual content starts (after TOC)
+        # Look for "PART I" or "PART II" markers
+        part_markers = ['part i\n', 'part i ', 'part ii\n', 'part ii ']
+        content_start = 0
+
+        for marker in part_markers:
+            part_match = content_lower.find(marker)
+            if part_match > 0 and part_match < 100000:  # Reasonable position
+                content_start = part_match
+                break
+
+        # If no PART marker found, skip first 30K chars (usually TOC + XBRL)
+        if content_start == 0:
+            content_start = min(30000, len(content) // 4)
+
+        # Now search for the section AFTER the TOC
+        search_region = content_lower[content_start:]
+        match = re.search(pattern, search_region)
+
         if not match:
-            return None
-        
-        start_idx = match.start()
-        
+            # Fallback: try the whole document
+            match = re.search(pattern, content_lower)
+            if not match:
+                return None
+            start_idx = match.start()
+        else:
+            start_idx = content_start + match.start()
+
         # Find next section (approximate end)
-        # Look for next "Item X" pattern
-        next_section = re.search(r'item\s*\d+[a-z]?[.\s]', content_lower[match.end():])
+        # Look for next "Item X" pattern after current match
+        search_after = content_lower[start_idx + 100:]  # Skip current header
+        next_section = re.search(r'item\s*\d+[a-z]?[.\s]', search_after)
+
         if next_section:
-            end_idx = match.end() + next_section.start()
+            end_idx = start_idx + 100 + next_section.start()
         else:
             # Take a reasonable chunk if no next section found
             end_idx = min(start_idx + 50000, len(content))
-        
-        return content[start_idx:end_idx].strip()
+
+        extracted = content[start_idx:end_idx].strip()
+
+        # Sanity check: if extracted section is very short, it might be TOC
+        if len(extracted) < 500:
+            # Try finding the next occurrence
+            search_region2 = content_lower[start_idx + 200:]
+            match2 = re.search(pattern, search_region2)
+            if match2:
+                start_idx2 = start_idx + 200 + match2.start()
+                next_section2 = re.search(r'item\s*\d+[a-z]?[.\s]', content_lower[start_idx2 + 100:])
+                if next_section2:
+                    end_idx2 = start_idx2 + 100 + next_section2.start()
+                else:
+                    end_idx2 = min(start_idx2 + 50000, len(content))
+                extracted = content[start_idx2:end_idx2].strip()
+
+        return extracted
     
     def get_filings_with_sections(self, ticker: str, form_type: str = "10-K", 
                                    sections: List[str] = None, limit: int = 1) -> List[Dict]:

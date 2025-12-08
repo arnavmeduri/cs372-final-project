@@ -6,6 +6,9 @@ import streamlit as st
 import sys
 import os
 
+# Fix tokenizers parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,7 +23,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for clean, professional look
+# Custom CSS for clean, professional look (works in both light and dark mode)
 st.markdown("""
 <style>
     /* Main container */
@@ -29,22 +32,19 @@ st.markdown("""
         padding-bottom: 2rem;
         max-width: 900px;
     }
-    
-    /* Sidebar styling */
+
+    /* Sidebar styling - works in both modes */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
         padding-top: 1rem;
     }
-    
-    /* Headers */
+
+    /* Headers - visible in both light and dark mode */
     h1 {
-        color: #1a1a2e;
         font-weight: 600;
         margin-bottom: 0.5rem;
     }
-    
+
     h2 {
-        color: #16213e;
         font-size: 1.3rem;
         font-weight: 600;
         margin-top: 1.5rem;
@@ -52,9 +52,8 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
+
     h3 {
-        color: #0f3460;
         font-size: 1.1rem;
         font-weight: 500;
     }
@@ -63,71 +62,47 @@ st.markdown("""
     hr {
         margin: 1rem 0;
         border: none;
-        border-top: 1px solid #dee2e6;
+        opacity: 0.3;
     }
-    
-    /* Content boxes */
-    .content-box {
-        background-color: #ffffff;
-        border: 1px solid #e9ecef;
-        border-radius: 4px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-    }
-    
-    /* Metric cards */
+
+    /* Metric cards - work in both modes */
     [data-testid="stMetricValue"] {
         font-size: 1.4rem;
         font-weight: 600;
-        color: #1a1a2e;
     }
-    
+
     [data-testid="stMetricLabel"] {
         font-size: 0.85rem;
-        color: #6c757d;
         text-transform: uppercase;
         letter-spacing: 0.3px;
+        opacity: 0.7;
     }
-    
+
     /* Buttons */
     .stButton > button {
         width: 100%;
-        background-color: #1a1a2e;
-        color: white;
-        border: none;
         padding: 0.6rem 1rem;
         font-weight: 500;
     }
-    
-    .stButton > button:hover {
-        background-color: #16213e;
-    }
-    
-    /* Download button */
-    .stDownloadButton > button {
-        background-color: #f8f9fa;
-        color: #1a1a2e;
-        border: 1px solid #dee2e6;
-    }
-    
+
     /* Status text */
     .status-text {
         font-size: 0.85rem;
-        color: #6c757d;
+        opacity: 0.7;
     }
-    
+
     /* Sources section */
     .sources {
         font-size: 0.85rem;
-        color: #6c757d;
         line-height: 1.6;
+        opacity: 0.8;
     }
-    
+
     /* About section in sidebar */
     .about-text {
         font-size: 0.85rem;
-        color: #495057;
         line-height: 1.5;
+        opacity: 0.8;
     }
     
     /* Remove Streamlit branding */

@@ -117,7 +117,7 @@ class DukeGatewayModel:
             Generated analysis text
         """
         # Truncate context if too long (Duke Gateway may have limits)
-        max_context_chars = 8000  # More generous than local models
+        max_context_chars = 32000  # More generous than local models
         if len(context) > max_context_chars:
             context = context[:max_context_chars] + "\n[Context truncated for processing...]"
         

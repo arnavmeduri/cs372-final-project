@@ -24,7 +24,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Tuple
 from dotenv import load_dotenv
 
-from .sec_edgar_client import SECEdgarClient
+from .sec_edgar_client import SECEdgarClient as SECEdgarClientOld
+from .edgartools_client import EdgarToolsClient
 from .finnhub_client import FinnhubClient, FinancialMetrics
 from .rag_system import RAGSystem
 from .model_handler import FinBriefModel, clear_memory
@@ -106,16 +107,27 @@ class FinBriefApp:
         
         self._log("Initializing FinBrief...")
         
-        # Initialize SEC EDGAR client
-        self._log("Loading SEC EDGAR client...")
-        company_name = os.getenv('SEC_EDGAR_COMPANY_NAME', 'FinBriefApp')
+        # Initialize SEC EDGAR client (use edgartools for better section extraction)
+        self._log("Loading SEC EDGAR client (edgartools)...")
         name = os.getenv('SEC_EDGAR_NAME', 'Student')
         email = os.getenv('SEC_EDGAR_EMAIL', 'student@university.edu')
-        self.sec_client = SECEdgarClient(
-            company_name=company_name,
-            name=name,
-            email=email
-        )
+
+        try:
+            # Try edgartools first (10x better section extraction)
+            self.sec_client = EdgarToolsClient(
+                name=name,
+                email=email
+            )
+            self._log("✅ Using edgartools (better section extraction)")
+        except Exception as e:
+            # Fallback to old client if edgartools unavailable
+            self._log(f"⚠️  edgartools unavailable, using legacy client: {e}")
+            company_name = os.getenv('SEC_EDGAR_COMPANY_NAME', 'FinBriefApp')
+            self.sec_client = SECEdgarClientOld(
+                company_name=company_name,
+                name=name,
+                email=email
+            )
         
         # Initialize Finnhub client (optional)
         self.finnhub_client = None
