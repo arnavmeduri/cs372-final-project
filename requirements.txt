@@ -22,6 +22,9 @@ pandas>=2.1.0
 numpy>=1.24.0
 lxml>=4.9.0
 
+# SEC EDGAR filing parsing (Phase 2 integration)
+edgartools>=2.0.0
+
 # LangChain (optional, for advanced RAG)
 langchain>=0.1.0
 langchain-community>=0.0.10
