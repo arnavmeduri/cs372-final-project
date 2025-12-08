@@ -1540,6 +1540,61 @@ Financial Context:
         return None
 
 
+def _format_comparison(ticker: str, output_rag: str, output_no_rag: str) -> str:
+    """
+    Format side-by-side comparison of RAG vs No-RAG outputs.
+
+    Args:
+        ticker: Stock ticker
+        output_rag: Report generated with RAG
+        output_no_rag: Report generated without RAG
+
+    Returns:
+        Formatted comparison output
+    """
+    comparison = []
+    comparison.append("="*100)
+    comparison.append(f"RAG vs NO-RAG COMPARISON for {ticker}")
+    comparison.append("="*100)
+    comparison.append("")
+    comparison.append("This comparison demonstrates the qualitative impact of Retrieval-Augmented Generation (RAG)")
+    comparison.append("on report quality. The RAG report uses actual SEC filings and real-time financial data,")
+    comparison.append("while the No-RAG report relies solely on the LLM's general knowledge.")
+    comparison.append("")
+    comparison.append("="*100)
+    comparison.append("REPORT WITH RAG (SEC Filings + Finnhub)")
+    comparison.append("="*100)
+    comparison.append("")
+    comparison.append(output_rag)
+    comparison.append("")
+    comparison.append("")
+    comparison.append("="*100)
+    comparison.append("REPORT WITHOUT RAG (LLM General Knowledge Only)")
+    comparison.append("="*100)
+    comparison.append("")
+    comparison.append(output_no_rag)
+    comparison.append("")
+    comparison.append("")
+    comparison.append("="*100)
+    comparison.append("KEY DIFFERENCES TO NOTE:")
+    comparison.append("="*100)
+    comparison.append("")
+    comparison.append("1. **Specificity**: RAG report includes specific numbers, dates, and facts from SEC filings")
+    comparison.append("2. **Accuracy**: RAG report uses authoritative SEC data vs potentially outdated LLM knowledge")
+    comparison.append("3. **Citations**: RAG report provides source attribution to SEC filings")
+    comparison.append("4. **Depth**: RAG report includes company-specific risks and opportunities from actual filings")
+    comparison.append("5. **Currency**: RAG report reflects latest financial data from Finnhub API")
+    comparison.append("")
+    comparison.append("Without RAG, the LLM may:")
+    comparison.append("- Use outdated information from its training data")
+    comparison.append("- Hallucinate facts or figures")
+    comparison.append("- Provide generic analysis not tailored to recent company performance")
+    comparison.append("- Miss recent strategic shifts or risk factors disclosed in latest filings")
+    comparison.append("")
+
+    return "\n".join(comparison)
+
+
 # CLI interface
 def main():
     """Command-line interface for FinBrief."""
@@ -1550,9 +1605,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m src.finbrief AAPL              # Full analysis with RAG (SEC + Finnhub)
-  python -m src.finbrief MSFT --format md  # Markdown output
-  python -m src.finbrief IBM --no-rag -o ibm_no_rag.txt  # Without RAG (pure LLM)
+  python -m src.finbrief AAPL                          # Full analysis with RAG (SEC + Finnhub)
+  python -m src.finbrief MSFT --format md              # Markdown output
+  python -m src.finbrief IBM --no-rag                  # Without RAG (pure LLM knowledge)
+  python -m src.finbrief TSLA --compare -o comparison.txt  # RAG vs No-RAG side-by-side
+  python -m src.finbrief NVDA --duke-model "GPT 4o"    # Use different Duke Gateway model
+
+Available Duke Gateway models:
+  GPT 4.1, GPT 4.1 Mini, GPT 4o, o4 Mini, Llama 3.3, Llama 4 Scout, Mistral on-site
+  (Configure default in .env: DUKE_AI_MODEL="GPT 4.1")
 """
     )
     
@@ -1572,13 +1633,15 @@ Examples:
     parser.add_argument('--api-key', type=str, help='Finnhub API key')
     parser.add_argument('--duke-gateway', action='store_true',
                        help='Use Duke AI Gateway (requires LITELLM_TOKEN in .env)')
-    parser.add_argument('--duke-model', type=str, default='GPT 4.1',
-                       help='Duke Gateway model to use (default: GPT 4.1)')
+    parser.add_argument('--duke-model', type=str,
+                       help='Duke Gateway model to use (overrides DUKE_AI_MODEL in .env)')
     parser.add_argument('--no-duke-gateway', action='store_true',
                        help='Force use of local model (skip Duke Gateway)')
     parser.add_argument('--no-rag', action='store_true',
                        help='Disable RAG: skip both SEC filings and Finnhub metrics (use only LLM general knowledge)')
-    
+    parser.add_argument('--compare', action='store_true',
+                       help='Generate both RAG and No-RAG reports side-by-side for comparison')
+
     args = parser.parse_args()
     
     # Rich mode is always enabled (default behavior)
@@ -1591,7 +1654,7 @@ Examples:
     elif args.no_duke_gateway:
         use_duke_gateway = False
     # Otherwise auto-detect (None)
-    
+
     # Initialize app
     app = FinBriefApp(
         finnhub_api_key=args.api_key,
@@ -1600,7 +1663,7 @@ Examples:
         duke_model=args.duke_model,
         verbose=not args.quiet
     )
-    
+
     if args.quick:
         # Quick metrics only
         result = app.quick_metrics(args.ticker)
@@ -1609,8 +1672,55 @@ Examples:
         else:
             print(f"Could not fetch metrics for {args.ticker}")
         return
-    
-    # Generate full brief
+
+    # RAG vs No-RAG comparison mode
+    if args.compare:
+        print("="*80)
+        print("RAG vs NO-RAG COMPARISON MODE")
+        print(f"Generating two reports for {args.ticker} to demonstrate RAG impact")
+        print("="*80)
+        print()
+
+        try:
+            # Generate RAG report
+            print("[1/2] Generating WITH RAG (SEC filings + Finnhub metrics)...")
+            brief_with_rag = app.generate_brief(
+                args.ticker,
+                filing_type=args.filing,
+                use_model=True,
+                use_rag=True
+            )
+
+            # Generate No-RAG report
+            print("[2/2] Generating WITHOUT RAG (LLM general knowledge only)...")
+            brief_no_rag = app.generate_brief(
+                args.ticker,
+                filing_type=args.filing,
+                use_model=True,
+                use_rag=False
+            )
+
+            # Format outputs
+            format_type = 'markdown' if args.format in ['markdown', 'md'] else 'text'
+            output_rag = app.format_brief(brief_with_rag, format=format_type, rich_mode=True)
+            output_no_rag = app.format_brief(brief_no_rag, format=format_type, rich_mode=True)
+
+            # Display side-by-side comparison
+            comparison_output = _format_comparison(args.ticker, output_rag, output_no_rag)
+
+            if args.output:
+                with open(args.output, 'w') as f:
+                    f.write(comparison_output)
+                print(f"Comparison saved to {args.output}")
+            else:
+                print(comparison_output)
+
+        except Exception as e:
+            print(f"Error generating comparison: {e}")
+            raise
+        return
+
+    # Generate full brief (standard mode)
     try:
         brief = app.generate_brief(
             args.ticker,
@@ -1618,17 +1728,17 @@ Examples:
             use_model=not args.no_model,
             use_rag=not args.no_rag
         )
-        
+
         format_type = 'markdown' if args.format in ['markdown', 'md'] else 'text'
         output = app.format_brief(brief, format=format_type, rich_mode=True)
-        
+
         if args.output:
             with open(args.output, 'w') as f:
                 f.write(output)
             print(f"Brief saved to {args.output}")
         else:
             print(output)
-            
+
     except Exception as e:
         print(f"Error generating brief: {e}")
         raise

@@ -167,9 +167,30 @@ def main():
             index=0,
             help="10-K: Annual report | 10-Q: Quarterly report"
         )
-        
+
+        # RAG toggle (with expander for advanced options)
+        with st.expander("⚙️ Advanced Options"):
+            use_rag = st.checkbox(
+                "Enable RAG (SEC Filings + Financial Data)",
+                value=True,
+                help="RAG uses actual SEC filings and real-time data. Disable to see pure LLM knowledge (for comparison)."
+            )
+
+            if not use_rag:
+                st.warning("⚠️ RAG disabled: Report will use only LLM general knowledge (may be outdated or inaccurate)")
+
+            # Comparison mode
+            compare_mode = st.checkbox(
+                "Generate Both (RAG vs No-RAG)",
+                value=False,
+                help="Generate two reports side-by-side to compare RAG impact"
+            )
+
+            if compare_mode:
+                st.info("📊 Comparison mode: Will generate both RAG and No-RAG reports")
+
         st.markdown("---")
-        
+
         # Generate button
         generate_clicked = st.button(
             "Generate Report",
@@ -196,44 +217,213 @@ def main():
     # Initialize session state for report
     if "report" not in st.session_state:
         st.session_state.report = None
+    if "report_no_rag" not in st.session_state:
+        st.session_state.report_no_rag = None
     if "metrics" not in st.session_state:
         st.session_state.metrics = None
-    
+    if "is_comparison" not in st.session_state:
+        st.session_state.is_comparison = False
+
     # Generate report when button clicked
     if generate_clicked and ticker:
         st.session_state.report = None
+        st.session_state.report_no_rag = None
         st.session_state.metrics = None
-        
-        with st.spinner(f"Analyzing {ticker}... This may take 30-60 seconds."):
-            try:
-                # Initialize FinBrief
-                app = FinBriefApp(
-                    use_duke_gateway=True,
-                    verbose=False
-                )
-                
-                # Fetch metrics first (for display)
-                metrics = app.fetch_metrics(ticker)
-                st.session_state.metrics = metrics
-                
-                # Generate the report
-                brief = app.generate_rich_analysis(
-                    ticker=ticker,
-                    filing_type=filing_type,
-                    use_rag=True
-                )
-                
-                st.session_state.report = brief
-                
-            except Exception as e:
-                st.error(f"Error generating report: {str(e)}")
-                st.session_state.report = None
+        st.session_state.is_comparison = compare_mode
+
+        if compare_mode:
+            # Comparison mode: generate both reports
+            with st.spinner(f"Generating comparison for {ticker}... This may take 60-120 seconds."):
+                try:
+                    # Initialize FinBrief
+                    app = FinBriefApp(
+                        use_duke_gateway=True,
+                        verbose=False
+                    )
+
+                    # Fetch metrics first (for display)
+                    metrics = app.fetch_metrics(ticker)
+                    st.session_state.metrics = metrics
+
+                    # Generate WITH RAG
+                    st.info("[1/2] Generating WITH RAG (SEC filings + financial data)...")
+                    brief_rag = app.generate_rich_analysis(
+                        ticker=ticker,
+                        filing_type=filing_type,
+                        use_rag=True
+                    )
+                    st.session_state.report = brief_rag
+
+                    # Generate WITHOUT RAG
+                    st.info("[2/2] Generating WITHOUT RAG (LLM general knowledge only)...")
+                    brief_no_rag = app.generate_rich_analysis(
+                        ticker=ticker,
+                        filing_type=filing_type,
+                        use_rag=False
+                    )
+                    st.session_state.report_no_rag = brief_no_rag
+
+                    st.success("✅ Both reports generated successfully!")
+
+                except Exception as e:
+                    st.error(f"Error generating comparison: {str(e)}")
+                    st.session_state.report = None
+                    st.session_state.report_no_rag = None
+        else:
+            # Standard mode: single report
+            spinner_text = f"Analyzing {ticker}... This may take 30-60 seconds."
+            if not use_rag:
+                spinner_text = f"Generating report for {ticker} using LLM knowledge only..."
+
+            with st.spinner(spinner_text):
+                try:
+                    # Initialize FinBrief
+                    app = FinBriefApp(
+                        use_duke_gateway=True,
+                        verbose=False
+                    )
+
+                    # Fetch metrics first (for display)
+                    if use_rag:
+                        metrics = app.fetch_metrics(ticker)
+                        st.session_state.metrics = metrics
+                    else:
+                        st.session_state.metrics = None
+
+                    # Generate the report
+                    brief = app.generate_rich_analysis(
+                        ticker=ticker,
+                        filing_type=filing_type,
+                        use_rag=use_rag
+                    )
+
+                    st.session_state.report = brief
+
+                except Exception as e:
+                    st.error(f"Error generating report: {str(e)}")
+                    st.session_state.report = None
     
     # Display report if available
     if st.session_state.report:
+        # Comparison mode: Display both reports side-by-side
+        if st.session_state.is_comparison and st.session_state.report_no_rag:
+            brief_rag = st.session_state.report
+            brief_no_rag = st.session_state.report_no_rag
+            metrics = st.session_state.metrics
+
+            # Header
+            st.markdown(f"# RAG vs No-RAG Comparison: {brief_rag.company_name} ({brief_rag.ticker})")
+            st.markdown(f"*Analysis Date: {brief_rag.analysis_date}*")
+
+            st.markdown("---")
+
+            st.info("""
+            **About this comparison:** This demonstrates the qualitative impact of Retrieval-Augmented Generation (RAG).
+            The left report uses actual SEC filings and real-time financial data, while the right report uses only the LLM's general knowledge.
+            """)
+
+            st.markdown("---")
+
+            # Use tabs for cleaner display
+            tab_rag, tab_no_rag, tab_differences = st.tabs([
+                "📊 WITH RAG (SEC + Finnhub)",
+                "🤖 WITHOUT RAG (LLM Only)",
+                "🔍 Key Differences"
+            ])
+
+            with tab_rag:
+                st.markdown("### Report Generated WITH RAG")
+                st.markdown("*Uses actual SEC filings and real-time Finnhub data*")
+                st.markdown("")
+
+                # Display RAG analysis
+                if brief_rag.company_summary:
+                    st.markdown("## Analysis")
+                    analysis_text = brief_rag.company_summary.strip()
+                    if analysis_text.startswith("```"):
+                        first_newline = analysis_text.find('\n')
+                        if first_newline != -1:
+                            analysis_text = analysis_text[first_newline+1:]
+                    if analysis_text.endswith("```"):
+                        analysis_text = analysis_text[:-3]
+                    st.markdown(analysis_text.strip(), unsafe_allow_html=False)
+
+                # Sources
+                if brief_rag.summary_citations:
+                    st.markdown("---")
+                    st.markdown("## Sources")
+                    st.markdown("*Grounded in SEC filings:*")
+                    for citation in brief_rag.summary_citations:
+                        lines = citation.split('\n')
+                        main_ref = lines[0]
+                        url = None
+                        for line in lines[1:]:
+                            if line.strip().startswith("URL:"):
+                                url = line.strip().replace("URL:", "").strip()
+                                break
+                        if url:
+                            st.markdown(f"**{main_ref}**")
+                            st.markdown(f"🔗 [View on SEC.gov]({url})")
+                        else:
+                            st.markdown(f"**{main_ref}**")
+
+            with tab_no_rag:
+                st.markdown("### Report Generated WITHOUT RAG")
+                st.markdown("*Uses only LLM general knowledge (may be outdated or inaccurate)*")
+                st.markdown("")
+
+                # Display No-RAG analysis
+                if brief_no_rag.company_summary:
+                    st.markdown("## Analysis")
+                    analysis_text = brief_no_rag.company_summary.strip()
+                    if analysis_text.startswith("```"):
+                        first_newline = analysis_text.find('\n')
+                        if first_newline != -1:
+                            analysis_text = analysis_text[first_newline+1:]
+                    if analysis_text.endswith("```"):
+                        analysis_text = analysis_text[:-3]
+                    st.markdown(analysis_text.strip(), unsafe_allow_html=False)
+
+                st.markdown("---")
+                st.warning("⚠️ This report has NO source citations because it's based only on the LLM's general knowledge.")
+
+            with tab_differences:
+                st.markdown("### Key Differences to Note")
+                st.markdown("")
+                st.markdown("**1. Specificity**")
+                st.markdown("- WITH RAG: Includes specific numbers, dates, and facts from SEC filings")
+                st.markdown("- WITHOUT RAG: May use generic or outdated information")
+                st.markdown("")
+                st.markdown("**2. Accuracy**")
+                st.markdown("- WITH RAG: Authoritative SEC data and real-time financial metrics")
+                st.markdown("- WITHOUT RAG: LLM training data (may be months/years old)")
+                st.markdown("")
+                st.markdown("**3. Citations**")
+                st.markdown("- WITH RAG: Provides source attribution to SEC filings")
+                st.markdown("- WITHOUT RAG: No source verification")
+                st.markdown("")
+                st.markdown("**4. Depth**")
+                st.markdown("- WITH RAG: Company-specific risks and opportunities from actual filings")
+                st.markdown("- WITHOUT RAG: Generic analysis based on what LLM 'remembers'")
+                st.markdown("")
+                st.markdown("**5. Currency**")
+                st.markdown("- WITH RAG: Latest financial data from Finnhub API")
+                st.markdown("- WITHOUT RAG: Frozen at LLM training cutoff date")
+                st.markdown("")
+                st.warning("""
+                **Without RAG, the LLM may:**
+                - Use outdated information from its training data
+                - Hallucinate facts or figures
+                - Provide generic analysis not tailored to recent company performance
+                - Miss recent strategic shifts or risk factors disclosed in latest filings
+                """)
+
+            return  # Exit early, don't display single report
+
+        # Standard mode: Display single report
         brief = st.session_state.report
         metrics = st.session_state.metrics
-        
+
         # Header
         st.markdown(f"# {brief.company_name} ({brief.ticker})")
         st.markdown(f"*Analysis Date: {brief.analysis_date}*")
