@@ -146,6 +146,8 @@ Based on the authoritative SEC filings, financial metrics, and other information
 
 **CRITICAL: The context contains actual SEC filing content. You MUST prioritize and extensively use information from the SEC filing sections marked [SEC Filing] in the context. Do not rely on general knowledge - use the specific details, numbers, and facts from the SEC filings provided.**
 
+**FORMATTING: Use clean markdown formatting. Minimize use of italics (*text*) and inline code (`text`). Use bold (**text**) sparingly only for section headers and key terms. Write in clear prose without excessive emphasis markup.**
+
 **COMPANY OVERVIEW** (3-4 paragraphs)
 - Extract detailed business description DIRECTLY from SEC filing content in the context
 - Use specific revenue figures, market share, and products/services mentioned in SEC filings

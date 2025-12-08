@@ -48,25 +48,7 @@ class FinBriefApp:
     """
     Main FinBrief application for generating educational investment briefs.
     """
-    
-    # Company name mappings
-    COMPANY_NAMES = {
-        'AAPL': 'Apple Inc.',
-        'MSFT': 'Microsoft Corporation',
-        'GOOGL': 'Alphabet Inc.',
-        'AMZN': 'Amazon.com Inc.',
-        'META': 'Meta Platforms Inc.',
-        'TSLA': 'Tesla Inc.',
-        'NVDA': 'NVIDIA Corporation',
-        'IBM': 'IBM Corporation',
-        'JPM': 'JPMorgan Chase & Co.',
-        'V': 'Visa Inc.',
-        'JNJ': 'Johnson & Johnson',
-        'NFLX': 'Netflix Inc.',
-        'INTC': 'Intel Corporation',
-        'AMD': 'Advanced Micro Devices Inc.',
-    }
-    
+
     def __init__(
         self,
         finnhub_api_key: Optional[str] = None,
@@ -170,8 +152,34 @@ class FinBriefApp:
             print(f"[FinBrief] {message}")
     
     def _get_company_name(self, ticker: str) -> str:
-        """Get company name from ticker."""
-        return self.COMPANY_NAMES.get(ticker.upper(), f"{ticker.upper()} Corporation")
+        """
+        Get company name from ticker.
+        Tries Finnhub first, then edgartools, then uses generic fallback.
+        """
+        ticker = ticker.upper()
+
+        # Try Finnhub if available
+        if self.finnhub_client:
+            try:
+                profile = self.finnhub_client.get_company_profile(ticker)
+                if profile and profile.get('name'):
+                    return profile['name']
+            except:
+                pass
+
+        # Try edgartools if available
+        try:
+            from edgar import Company, set_identity
+            import os
+            set_identity(f"{os.getenv('SEC_EDGAR_NAME', 'Student')} {os.getenv('SEC_EDGAR_EMAIL', 'test@duke.edu')}")
+            company = Company(ticker)
+            if company and hasattr(company, 'name') and company.name:
+                return company.name
+        except:
+            pass
+
+        # Fallback to generic name
+        return f"{ticker} Corporation"
     
     def _load_model(self):
         """
@@ -1349,8 +1357,10 @@ Financial Context:
             
             comprehensive_query = (
                 f"Extract and synthesize comprehensive information about {company_name} from the SEC filing content provided. "
-                f"Focus on: business description, financial metrics, key risks, growth opportunities, "
-                f"competitive position, and market dynamics. Use specific details from the SEC filing sections in the context."
+                f"Focus on: business description, qualitative risks from Risk Factors section, strategic opportunities, "
+                f"competitive position, market dynamics, and financial metrics. "
+                f"For risks, prioritize qualitative factors, regulatory challenges, market conditions, and strategic risks "
+                f"from the Risk Factors section over balance sheet ratios. Use specific details from the SEC filing sections."
             )
             
             comprehensive_context, comprehensive_citations = self.rag.get_context_with_citations(

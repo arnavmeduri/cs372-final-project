@@ -302,6 +302,7 @@ class BalanceSheetAnalyzer:
     ) -> str:
         """
         Format balance sheet analysis for inclusion in LLM context.
+        De-emphasized formatting to avoid overwhelming other sections.
 
         Args:
             items: Balance sheet line items
@@ -312,10 +313,8 @@ class BalanceSheetAnalyzer:
             Formatted text for context
         """
         output = []
-        output.append("=" * 60)
-        output.append("BALANCE SHEET ANALYSIS")
-        output.append("=" * 60)
-        output.append(f"Company: {company_name}\n")
+        # De-emphasized header (no prominent separators to avoid over-focus)
+        output.append(f"Balance Sheet Analysis for {company_name}:")
 
         # Key line items (in billions)
         output.append("Key Balance Sheet Items:")
