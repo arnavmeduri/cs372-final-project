@@ -519,6 +519,61 @@ class FinBriefApp:
         
         return f"Business description for {company_name} - see SEC filing Item 1 for details."
     
+    def _extract_full_sentences(self, text: str, max_length: int = 300) -> str:
+        """
+        Extract full sentences from text up to max_length characters.
+        Ensures we don't cut off mid-sentence.
+        
+        Args:
+            text: Source text to extract from
+            max_length: Maximum character length for excerpt
+            
+        Returns:
+            Excerpt with complete sentences, truncated if necessary
+        """
+        if not text:
+            return ""
+        
+        # Clean up newlines
+        text = text.replace('\n', ' ').strip()
+        
+        if len(text) <= max_length:
+            return text
+        
+        # Take first max_length chars
+        truncated = text[:max_length]
+        
+        # Find last complete sentence (period, exclamation, question mark followed by space)
+        sentence_endings = ['. ', '! ', '? ']
+        last_sentence_end = -1
+        
+        # Search backwards from the end, but at least 50% into the text
+        search_start = max(0, max_length - 100)
+        for i in range(len(truncated) - 1, search_start, -1):
+            if i < len(truncated) - 1:
+                # Check for sentence ending followed by space
+                if truncated[i] in ['.', '!', '?']:
+                    if i + 1 < len(truncated) and truncated[i + 1] in [' ', '\t']:
+                        last_sentence_end = i + 1
+                        break
+        
+        if last_sentence_end > max_length * 0.5:  # Found a sentence boundary at least 50% through
+            excerpt = truncated[:last_sentence_end].strip()
+        else:
+            # No sentence boundary found, find last complete word
+            last_space = truncated.rfind(' ', 0, max_length)
+            if last_space > max_length * 0.7:  # Only use if we got most of the length
+                excerpt = truncated[:last_space].strip()
+            else:
+                # Fallback: just truncate at max_length
+                excerpt = truncated.strip()
+        
+        # Add ellipsis if we truncated
+        if len(text) > max_length:
+            excerpt += "..."
+        
+        return excerpt
+    
     def _extract_clean_sentences(self, text: str, max_sentences: int = 3) -> str:
         """Extract clean, complete sentences from text."""
         import re
@@ -900,7 +955,9 @@ class FinBriefApp:
             opp_citations = []
         
         # 5. Extract structured information
-        filing_content = filings[0].get('content', '')[:50000]
+        filing_content = ""
+        if filings and len(filings) > 0:
+            filing_content = filings[0].get('content', '')[:50000]
         
         risks = self._extract_risks_from_content(risk_context, risk_citations)
         opportunities = self._extract_opportunities_from_content(opp_context, opp_citations)
@@ -1101,9 +1158,9 @@ Financial Context:
         )
         
         # 12. Build sources list
-        sources = [
-            Citation("SEC Filing", f"{filing_type} ({filings[0].get('filing_date', 'Recent')})")
-        ]
+        sources = []
+        if filings and len(filings) > 0:
+            sources.append(Citation("SEC Filing", f"{filing_type} ({filings[0].get('filing_date', 'Recent')})"))
         if finnhub_metrics:
             sources.append(Citation("Finnhub", "Real-time financial metrics"))
         
@@ -1223,9 +1280,9 @@ Financial Context:
             self._log("Retrieving comprehensive context (15 chunks)...")
             
             comprehensive_query = (
-                f"Provide comprehensive information about {company_name} including: "
-                f"business description, financial metrics, key risks, growth opportunities, "
-                f"competitive position, and market dynamics."
+                f"Extract and synthesize comprehensive information about {company_name} from the SEC filing content provided. "
+                f"Focus on: business description, financial metrics, key risks, growth opportunities, "
+                f"competitive position, and market dynamics. Use specific details from the SEC filing sections in the context."
             )
             
             comprehensive_context, comprehensive_citations = self.rag.get_context_with_citations(
@@ -1281,9 +1338,9 @@ Financial Context:
         print(f"[RICH MODE] Output length: {len(rich_analysis_content)} characters (~{len(rich_analysis_content.split())} words)")
         
         # 8. Build sources list
-        sources = [
-            Citation("SEC Filing", f"{filing_type} ({filings[0].get('filing_date', 'Recent')})")
-        ]
+        sources = []
+        if filings and len(filings) > 0:
+            sources.append(Citation("SEC Filing", f"{filing_type} ({filings[0].get('filing_date', 'Recent')})"))
         if finnhub_metrics:
             sources.append(Citation("Finnhub", "Real-time financial metrics"))
         
@@ -1291,50 +1348,40 @@ Financial Context:
         # For rich mode, we store the comprehensive analysis in company_summary
         # and use special formatting in format_brief
         
-        # Format citations to show source names and sections
+        # Collect unique SEC filing URLs by type (10-K, 10-Q)
+        # Also get URLs from the filings list directly
+        sec_filing_urls = {}
+        
+        # Get URLs from filings list
+        if filings and len(filings) > 0:
+            for filing in filings:
+                filing_form = filing.get('form', filing_type)  # Use form from filing or default to filing_type
+                url = filing.get('url', '')
+                if url:
+                    # Normalize form type (handle variations)
+                    if '10-K' in filing_form or filing_form == '10-K':
+                        sec_filing_urls['10-K'] = url
+                    elif '10-Q' in filing_form or filing_form == '10-Q':
+                        sec_filing_urls['10-Q'] = url
+        
+        # Also check citations for any additional URLs
+        for c in comprehensive_citations:
+            source_type = c.get('source_type', '')
+            source_url = c.get('source_url', '')
+            if source_type == 'sec_filing' and source_url:
+                # Try to determine filing type from URL or use default
+                # Most citations will be from the same filing type we fetched
+                if '10-K' in source_url or filing_type == '10-K':
+                    sec_filing_urls['10-K'] = source_url
+                elif '10-Q' in source_url or filing_type == '10-Q':
+                    sec_filing_urls['10-Q'] = source_url
+        
+        # Format sources as simple list: one link per filing type
         formatted_citations = []
-        for i, c in enumerate(comprehensive_citations[:15]):  # Show up to 15 citations
-            source_type = c.get('source_type', 'Source')
-            section = c.get('section', '')
-            source_name = c.get('source_name', '')
-            category = c.get('category', '')
-            
-            # Build citation string
-            citation_parts = [f"[{i+1}]"]
-            
-            if source_type == 'sec_filing':
-                # Section name mapping
-                section_names = {
-                    'item_1': 'Business Description',
-                    'item_1a': 'Risk Factors',
-                    'item_1b': 'Unresolved Staff Comments',
-                    'item_7': "Management's Discussion and Analysis",
-                    'item_7a': 'Market Risk',
-                    'item_8': 'Financial Statements'
-                }
-                
-                if section:
-                    # Use extracted or inferred section
-                    section_display = section_names.get(section.lower(), section.replace('_', ' ').title())
-                    citation_parts.append(f"SEC Filing, {section_display}")
-                elif category:
-                    # Try to infer from category
-                    if 'risk' in category.lower():
-                        citation_parts.append("SEC Filing, Risk Factors")
-                    elif 'business' in category.lower():
-                        citation_parts.append("SEC Filing, Business Description")
-                    else:
-                        citation_parts.append("SEC Filing, Business Description")  # Default
-                else:
-                    # Last resort: default to Business Description
-                    citation_parts.append("SEC Filing, Business Description")
-                    
-            elif source_type == 'financial_metrics':
-                citation_parts.append("Finnhub Financial Metrics")
-            else:
-                citation_parts.append(source_type.replace('_', ' ').title())
-            
-            formatted_citations.append(" ".join(citation_parts))
+        for form_type in ['10-K', '10-Q']:
+            if form_type in sec_filing_urls:
+                url = sec_filing_urls[form_type]
+                formatted_citations.append(f"SEC {form_type} Filing\n    URL: {url}")
         
         brief = EducationalBrief(
             ticker=ticker,

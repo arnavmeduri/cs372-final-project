@@ -123,9 +123,20 @@ class DukeGatewayModel:
         
         # Load system instructions from config
         if for_beginners:
-            instructions = get_prompt('system_instructions_beginner')
+            instructions = get_prompt('system_instructions')
         else:
             instructions = get_prompt('system_instructions_expert')
+        
+        # Fallback if prompt not found
+        if not instructions:
+            instructions = """You are an expert educational financial analyst. Your goal is to extract and explain company information from authoritative SEC filings and financial data in simple, clear language.
+
+Key principles:
+- Extract specific facts, numbers, and details from the provided context
+- Ground ALL claims in the provided context - do not make up information
+- Cite sources using [1], [2], etc. when referencing specific information
+- Be specific: mention actual numbers, percentages, timeframes when available
+- If the context mentions specific risks, opportunities, or metrics, include them"""
         
         # Build input using template from config
         input_text = get_prompt('base_template', context=context, query=query)

@@ -30,15 +30,14 @@ cp .env.example .env
 # 4. Activate virtual environment
 source venv/bin/activate
 
-# 5. Generate a brief
-python -m src.finbrief AAPL
+# 5. Run the Web UI (recommended)
+streamlit run app.py
 
-# 6. Generate comprehensive analysis (recommended)
+# 6. Or use command line
 python -m src.finbrief AAPL --duke-gateway
 
 # 7. Test with any company ticker
 python data/test_any_company.py MSFT
-python data/test_any_company.py COST
 ```
 
 ### Output Modes

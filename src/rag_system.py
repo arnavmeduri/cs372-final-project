@@ -356,8 +356,11 @@ class RAGSystem:
         
         for i, (doc, similarity) in enumerate(retrieved):
             citation_id = f"[{i+1}]"
-            # Truncate text for memory efficiency
-            truncated_text = doc.text[:500] if len(doc.text) > 500 else doc.text
+            # Use more text for SEC filings to provide better context (800 chars instead of 500)
+            if doc.source_type == 'sec_filing':
+                truncated_text = doc.text[:800] if len(doc.text) > 800 else doc.text
+            else:
+                truncated_text = doc.text[:500] if len(doc.text) > 500 else doc.text
             
             # Add source type indicator for clarity
             source_label = {
@@ -371,7 +374,8 @@ class RAGSystem:
             
             citations.append({
                 'id': i + 1,
-                'text': doc.text[:200] + "..." if len(doc.text) > 200 else doc.text,
+                'text': doc.text[:400] + "..." if len(doc.text) > 400 else doc.text,
+                'full_text': doc.text,  # Store full text for hover/expand features
                 'source_type': doc.source_type,
                 'source_url': doc.source_url,
                 'source_name': doc.source_name,

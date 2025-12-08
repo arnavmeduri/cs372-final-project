@@ -18,6 +18,7 @@ from .duke_gateway_model import DukeGatewayModel
 
 # FinBrief components
 from .finnhub_client import FinnhubClient, FinancialMetrics
+from .investment_score import calculate_investment_score
 from .educational_brief import (
     EducationalBrief, EducationalBriefFormatter,
     RiskItem, OpportunityItem, TermExplanation, FinancialMetric, Citation,
@@ -32,6 +33,7 @@ __all__ = [
     "SECEdgarClient",
     "FinnhubClient",
     "FinancialMetrics",
+    "calculate_investment_score",
     "RAGSystem",
     "DocumentChunk",
     "FinBriefModel",
