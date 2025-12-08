@@ -30,7 +30,7 @@ from .finnhub_client import FinnhubClient, FinancialMetrics
 from .rag_system import RAGSystem
 from .model_handler import FinBriefModel, clear_memory
 from .duke_gateway_model import DukeGatewayModel
-from .prompt_loader import get_prompt
+from .prompt_loader import get_prompt, PromptLoader
 from .educational_brief import (
     EducationalBrief, EducationalBriefFormatter,
     RiskItem, OpportunityItem, TermExplanation, FinancialMetric, Citation,
@@ -41,7 +41,7 @@ from .confidence_head import HeuristicConfidenceEstimator
 from .section_validator import SectionValidator
 from .balance_sheet_analyzer import BalanceSheetAnalyzer
 
-load_dotenv()
+load_dotenv(override=True)  # Override system env vars with .env file
 
 
 class FinBriefApp:
@@ -189,16 +189,16 @@ class FinBriefApp:
         3. Local model (TinyLlama or specified)
         """
         if self.model is None:
-            # Priority 1: Duke AI Gateway
             print(f"[MODEL LOADER] Checking model options...")
             print(f"[MODEL LOADER] use_duke_gateway: {self.use_duke_gateway}")
-            
+
+            # Priority 1: Duke AI Gateway
             if self.use_duke_gateway:
                 print(f"[MODEL LOADER] Attempting to load Duke AI Gateway...")
                 try:
                     is_available = DukeGatewayModel.is_available()
                     print(f"[MODEL LOADER] Duke Gateway available: {is_available}")
-                    
+
                     if is_available:
                         print(f"[MODEL LOADER] Using Duke AI Gateway")
                         print(f"[MODEL LOADER] Model: {self.duke_model}")
@@ -223,7 +223,7 @@ class FinBriefApp:
                     # Continue to fallback options
             else:
                 print(f"[MODEL LOADER] Duke Gateway not requested (use_duke_gateway=False)")
-            
+
             # Priority 2: Check for fine-tuned LoRA adapter
             # Path resolution: from src/finbrief.py -> project_root/models/lora_adapter
             src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1336,19 +1336,34 @@ Financial Context:
         # 3. Build comprehensive RAG index (if use_rag is True)
         if use_rag:
             self._log("Building comprehensive RAG index...")
-            
+
             # Clear previous documents
             self.rag.documents = []
-            
-            # Add filings
-            self.rag.add_sec_filings(filings)
-            
+
+            # Add validated sections directly (cleaner than adding raw filings)
+            if validated_sections:
+                # Convert validated sections to filing format for RAG
+                section_filings = []
+                for section_name, content in validated_sections.items():
+                    section_filings.append({
+                        'content': content,
+                        'section': section_name,
+                        'ticker': ticker,
+                        'filing_date': 'Latest',
+                        'url': filings[0].get('url', '') if filings else ''
+                    })
+                self.rag.add_sec_filings(section_filings)
+                self._log(f"Added {len(validated_sections)} validated sections to RAG index")
+            elif filings:
+                # Fallback to raw filings if sections not available
+                self.rag.add_sec_filings(filings)
+
             # Add Finnhub metrics if available
             if finnhub_metrics:
                 metrics_chunk = self.finnhub_client.format_metrics_for_rag(ticker)
                 if metrics_chunk:
                     self.rag.add_financial_metrics(metrics_chunk)
-            
+
             # Rebuild index
             self.rag.build_index()
             
@@ -1365,7 +1380,7 @@ Financial Context:
             
             comprehensive_context, comprehensive_citations = self.rag.get_context_with_citations(
                 comprehensive_query,
-                top_k=15,  # Maximum context for rich mode
+                top_k=50,  # Maximum context for rich mode - retrieve 50 best chunks (~40K chars)
                 source_types=['sec_filing', 'financial_metrics']
             )
         else:
@@ -1375,8 +1390,8 @@ Financial Context:
             comprehensive_context += "NOTE: You do NOT have access to SEC filings or financial metrics APIs. Use only your general knowledge about this company.\n\n"
             comprehensive_citations = []
         
-        # 5. Add financial metrics to context
-        if finnhub_metrics:
+        # 5. Add financial metrics to context (ONLY in RAG mode)
+        if use_rag and finnhub_metrics:
             metrics_text = f"\n\n{'='*60}\nFINANCIAL METRICS\n{'='*60}\n"
             metrics_text += f"Company: {company_name} ({ticker})\n"
             if finnhub_metrics.market_cap:
@@ -1392,30 +1407,44 @@ Financial Context:
                 metrics_text += f"Debt-to-Equity Ratio: {finnhub_metrics.debt_to_equity:.2f}\n"
             comprehensive_context += metrics_text
 
-        # 5A. PHASE 3A: Add balance sheet analysis to context
-        if balance_sheet_context:
+        # 5A. PHASE 3A: Add balance sheet analysis to context (ONLY in RAG mode)
+        if use_rag and balance_sheet_context:
             comprehensive_context += balance_sheet_context
             if self.verbose:
                 print(f"✅ [PHASE 3A] Added balance sheet analysis to context")
 
-        # 6. Load rich analysis prompt
-        rich_prompt = get_prompt('rich_analysis_prompt', 
-                                company_name=company_name, 
-                                ticker=ticker)
-        
+        # 6. Load appropriate rich analysis prompt and system instructions based on RAG mode
+        if use_rag:
+            # Use standard prompts.md for RAG mode
+            rich_prompt = get_prompt('rich_analysis_prompt',
+                                    company_name=company_name,
+                                    ticker=ticker)
+            system_instructions = get_prompt('system_instructions')
+        else:
+            # Use separate prompts_no_rag.md for No-RAG mode
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
+            no_rag_prompts_file = os.path.join(project_root, 'config', 'prompts_no_rag.md')
+            no_rag_loader = PromptLoader(prompts_file=no_rag_prompts_file)
+            rich_prompt = no_rag_loader.get('rich_analysis_prompt',
+                                           company_name=company_name,
+                                           ticker=ticker)
+            system_instructions = no_rag_loader.get('system_instructions')
+
         print(f"\n[RICH MODE] Generating comprehensive analysis...")
         print(f"[RICH MODE] Context length: {len(comprehensive_context)} characters")
         print(f"[RICH MODE] Citations: {len(comprehensive_citations)} sources")
         print(f"[RICH MODE] Model: {type(self.model).__name__}")
         print(f"[RICH MODE] Expected output: 1000-2000 words")
         print(f"[RICH MODE] NO TRUNCATION - Full LLM output will be preserved\n")
-        
+
         # 7. Generate comprehensive analysis
         print(f"[FINBRIEF] Calling model.analyze_with_context() for rich analysis...")
         rich_analysis_content = self.model.analyze_with_context(
             comprehensive_context,
             rich_prompt,
-            for_beginners=True
+            for_beginners=True,
+            system_instructions=system_instructions
         )
         
         print(f"\n[RICH MODE] Analysis complete!")

@@ -19,7 +19,7 @@ except ImportError:
         "openai package required for Duke AI Gateway. Install with: pip install openai>=1.0.0"
     )
 
-load_dotenv()
+load_dotenv(override=True)  # Override system env vars with .env file
 
 # Duke AI Gateway configuration
 DUKE_GATEWAY_URL = "https://litellm.oit.duke.edu/v1"
@@ -101,18 +101,20 @@ class DukeGatewayModel:
         self,
         context: str,
         query: str,
-        for_beginners: bool = True
+        for_beginners: bool = True,
+        system_instructions: str = None
     ) -> str:
         """
         Generate analysis using RAG context.
-        
+
         Same interface as FinBriefModel.analyze_with_context()
-        
+
         Args:
             context: Retrieved context with citations
             query: Analysis query
             for_beginners: If True, use student-friendly language
-            
+            system_instructions: Optional system instructions (if None, loads from default prompts)
+
         Returns:
             Generated analysis text
         """
@@ -120,13 +122,17 @@ class DukeGatewayModel:
         max_context_chars = 32000  # More generous than local models
         if len(context) > max_context_chars:
             context = context[:max_context_chars] + "\n[Context truncated for processing...]"
-        
-        # Load system instructions from config
-        if for_beginners:
-            instructions = get_prompt('system_instructions')
+
+        # Use provided system instructions or load from config
+        if system_instructions:
+            instructions = system_instructions
         else:
-            instructions = get_prompt('system_instructions_expert')
-        
+            # Load system instructions from config (fallback)
+            if for_beginners:
+                instructions = get_prompt('system_instructions')
+            else:
+                instructions = get_prompt('system_instructions_expert')
+
         # Fallback if prompt not found
         if not instructions:
             instructions = """You are an expert educational financial analyst. Your goal is to extract and explain company information from authoritative SEC filings and financial data in simple, clear language.
@@ -137,9 +143,20 @@ Key principles:
 - Cite sources using [1], [2], etc. when referencing specific information
 - Be specific: mention actual numbers, percentages, timeframes when available
 - If the context mentions specific risks, opportunities, or metrics, include them"""
-        
-        # Build input using template from config
-        input_text = get_prompt('base_template', context=context, query=query)
+
+        # Build input text
+        # If custom system instructions were provided, use simple input format
+        # Otherwise use base_template from config
+        if system_instructions:
+            # Custom instructions provided - use simple input format
+            input_text = f"""Context:
+{context}
+
+Task:
+{query}"""
+        else:
+            # No custom instructions - use base_template from config
+            input_text = get_prompt('base_template', context=context, query=query)
         
         try:
             # Call Duke Gateway API
@@ -202,6 +219,14 @@ Key principles:
                 raise ValueError(
                     "Invalid LITELLM_TOKEN. Please verify your token at https://dashboard.ai.duke.edu/"
                 )
+            elif "budget" in error_msg.lower() or "budget_exceeded" in error_msg.lower():
+                raise RuntimeError(
+                    "Duke AI Gateway budget exceeded. This affects ALL models (including Mistral on-site).\n"
+                    "Solutions:\n"
+                    "  1. Wait for budget reset (check https://dashboard.ai.duke.edu/)\n"
+                    "  2. Request budget increase from Duke IT\n"
+                    "  3. Use local model: python -m src.finbrief TICKER --no-duke-gateway"
+                )
             elif "429" in error_msg or "rate limit" in error_msg.lower():
                 raise RuntimeError(
                     "Duke AI Gateway rate limit exceeded. Please wait a moment and try again."
@@ -261,6 +286,11 @@ Key principles:
             error_msg = str(e)
             if "401" in error_msg:
                 raise ValueError("Invalid LITELLM_TOKEN")
+            elif "budget" in error_msg.lower() or "budget_exceeded" in error_msg.lower():
+                raise RuntimeError(
+                    "Duke AI Gateway budget exceeded. This affects ALL models.\n"
+                    "Use --no-duke-gateway flag to use local model instead."
+                )
             elif "429" in error_msg:
                 raise RuntimeError("Rate limit exceeded")
             else:
@@ -269,25 +299,41 @@ Key principles:
     def _clean_response(self, text: str) -> str:
         """
         Clean up model response text.
-        
+
         Args:
             text: Raw response text
-            
+
         Returns:
             Cleaned text
         """
         import re
-        
+
         # Remove common artifacts
         text = text.strip()
-        
+
+        # Remove Mistral on-site specific disclaimers/garbage
+        mistral_patterns = [
+            r'\{I am a creativity and language model[^}]*\}',
+            r'NOTE IF YOU LEGITREAILY FOUND ME HELPFUL[^\n]*',
+            r'PLEASE REMEMBER TO TIP ME[^\n]*',
+            r'THE LIVING ISN\'T EASY DICE ROLLIN\' BEHIND THIS SCREEN[^\n]*',
+            r'\{Disclaimer[^}]*\}',
+            r'I am an AI[^\n]*do not have personal experiences[^\n]*',
+        ]
+
+        for pattern in mistral_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE)
+
         # Remove excessive newlines
         text = re.sub(r'\n{3,}', '\n\n', text)
-        
+
         # Remove leading/trailing whitespace from each line
         lines = [line.strip() for line in text.split('\n')]
         text = '\n'.join(lines)
-        
+
+        # Final cleanup
+        text = text.strip()
+
         return text
     
     @staticmethod

@@ -13,15 +13,15 @@ class PromptLoader:
     def __init__(self, prompts_file: str = None):
         """
         Initialize prompt loader.
-        
+
         Args:
-            prompts_file: Path to prompts file (default: docs/prompts.md)
+            prompts_file: Path to prompts file (default: config/prompts.md)
         """
         if prompts_file is None:
-            # Default to docs/prompts.md in project root
+            # Default to config/prompts.md in project root
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(current_dir)
-            prompts_file = os.path.join(project_root, 'docs', 'prompts.md')
+            prompts_file = os.path.join(project_root, 'config', 'prompts.md')
         
         self.prompts_file = prompts_file
         self.prompts = self._load_prompts()

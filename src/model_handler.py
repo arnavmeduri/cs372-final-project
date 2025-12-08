@@ -310,15 +310,16 @@ class FinBriefModel:
         
         return '\n'.join(clean_lines).strip()
     
-    def analyze_with_context(self, context: str, query: str, for_beginners: bool = True) -> str:
+    def analyze_with_context(self, context: str, query: str, for_beginners: bool = True, system_instructions: str = None) -> str:
         """
         Generate analysis using RAG context.
-        
+
         Args:
             context: Retrieved context with citations
             query: Analysis query
             for_beginners: If True, use student-friendly language (default)
-            
+            system_instructions: Optional system instructions (if None, uses default inline prompt)
+
         Returns:
             Generated analysis
         """
@@ -326,8 +327,21 @@ class FinBriefModel:
         max_context_chars = 16000  # Reduced for memory efficiency
         if len(context) > max_context_chars:
             context = context[:max_context_chars] + "\n[Context truncated for processing...]"
-        
-        if for_beginners:
+
+        # Use provided system instructions or fall back to inline prompt
+        if system_instructions:
+            # Use provided instructions with context and query
+            prompt = f"""{system_instructions}
+
+Context:
+{context}
+
+Task:
+{query}
+
+Response:"""
+        elif for_beginners:
+            # Default beginner prompt (fallback)
             prompt = f"""You are an educational financial analyst helping students learn about investing.
 Your goal is to explain company information in simple, clear language that a beginner investor can understand.
 

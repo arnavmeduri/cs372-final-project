@@ -146,16 +146,17 @@ class RAGSystem:
         for filing_idx, filing in enumerate(filings):
             content = filing.get('content', '')
 
-            # Skip XBRL metadata prefix (first ~25K chars are usually XBRL tags + TOC)
-            # This prevents polluting the vector index with machine-readable metadata
-            XBRL_PREFIX_LENGTH = 25000
-            if len(content) > XBRL_PREFIX_LENGTH:
-                content = content[XBRL_PREFIX_LENGTH:]
+            # NOTE: We now use edgartools which returns clean, pre-extracted sections
+            # No need to skip XBRL prefix - edgartools has already removed it
+            # XBRL_PREFIX_LENGTH = 25000  # REMOVED - not needed with edgartools
+
             if not content:
                 continue
-            
+
             # Limit content length for memory efficiency
-            max_content_length = 50000
+            # Increased from 50K to 200K to capture comprehensive SEC filing content
+            # Modern LLMs support 128K+ tokens, so 200K chars (~50K tokens) is safe
+            max_content_length = 200000
             if len(content) > max_content_length:
                 content = content[:max_content_length]
             

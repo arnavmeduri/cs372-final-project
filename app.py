@@ -168,26 +168,17 @@ def main():
             help="10-K: Annual report | 10-Q: Quarterly report"
         )
 
-        # RAG toggle (with expander for advanced options)
+        # Advanced options
         with st.expander("⚙️ Advanced Options"):
-            use_rag = st.checkbox(
-                "Enable RAG (SEC Filings + Financial Data)",
-                value=True,
-                help="RAG uses actual SEC filings and real-time data. Disable to see pure LLM knowledge (for comparison)."
-            )
-
-            if not use_rag:
-                st.warning("⚠️ RAG disabled: Report will use only LLM general knowledge (may be outdated or inaccurate)")
-
             # Comparison mode
             compare_mode = st.checkbox(
                 "Generate Both (RAG vs No-RAG)",
                 value=False,
-                help="Generate two reports side-by-side to compare RAG impact"
+                help="Generate two reports side-by-side to compare RAG impact. Shows how RAG improves quality with SEC filings vs pure LLM knowledge."
             )
 
             if compare_mode:
-                st.info("📊 Comparison mode: Will generate both RAG and No-RAG reports")
+                st.info("📊 Comparison mode: Will generate both WITH RAG and WITHOUT RAG reports side-by-side")
 
         st.markdown("---")
 
@@ -270,12 +261,8 @@ def main():
                     st.session_state.report = None
                     st.session_state.report_no_rag = None
         else:
-            # Standard mode: single report
-            spinner_text = f"Analyzing {ticker}... This may take 30-60 seconds."
-            if not use_rag:
-                spinner_text = f"Generating report for {ticker} using LLM knowledge only..."
-
-            with st.spinner(spinner_text):
+            # Standard mode: single report WITH RAG (default)
+            with st.spinner(f"Analyzing {ticker}... This may take 30-60 seconds."):
                 try:
                     # Initialize FinBrief
                     app = FinBriefApp(
@@ -284,17 +271,14 @@ def main():
                     )
 
                     # Fetch metrics first (for display)
-                    if use_rag:
-                        metrics = app.fetch_metrics(ticker)
-                        st.session_state.metrics = metrics
-                    else:
-                        st.session_state.metrics = None
+                    metrics = app.fetch_metrics(ticker)
+                    st.session_state.metrics = metrics
 
-                    # Generate the report
+                    # Generate the report WITH RAG
                     brief = app.generate_rich_analysis(
                         ticker=ticker,
                         filing_type=filing_type,
-                        use_rag=use_rag
+                        use_rag=True
                     )
 
                     st.session_state.report = brief
@@ -324,21 +308,118 @@ def main():
 
             st.markdown("---")
 
-            # Use tabs for cleaner display
-            tab_rag, tab_no_rag, tab_differences = st.tabs([
-                "📊 WITH RAG (SEC + Finnhub)",
-                "🤖 WITHOUT RAG (LLM Only)",
-                "🔍 Key Differences"
-            ])
+            # Key Metrics Section (shared for both RAG and No-RAG)
+            if metrics:
+                st.markdown("## Key Metrics")
 
-            with tab_rag:
-                st.markdown("### Report Generated WITH RAG")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Market Cap", format_market_cap(metrics.market_cap))
+                with col2:
+                    st.metric("P/E Ratio", format_metric(metrics.pe_ratio))
+                with col3:
+                    st.metric("EPS (TTM)", format_metric(metrics.eps_ttm, prefix="$"))
+
+                col4, col5, col6 = st.columns(3)
+                with col4:
+                    st.metric("Revenue Growth", format_metric(metrics.revenue_growth_yoy, suffix="%", prefix="+/-"))
+                with col5:
+                    st.metric("Debt/Equity", format_metric(metrics.debt_to_equity))
+                with col6:
+                    st.metric("Dividend Yield", format_metric(metrics.dividend_yield, suffix="%"))
+
+                st.markdown("")
+
+                # Investment Score Section (shared - based on same metrics)
+                from src.investment_score import calculate_investment_score
+                from src.balance_sheet_analyzer import BalanceSheetAnalyzer
+
+                # Try to get balance sheet ratios for accurate Graham score
+                balance_sheet_ratios = None
+                try:
+                    # Get balance sheet from filing if available
+                    from edgar import Company, set_identity
+                    import os
+                    set_identity(f"{os.getenv('SEC_EDGAR_NAME', 'Student')} {os.getenv('SEC_EDGAR_EMAIL', 'test@duke.edu')}")
+                    company = Company(brief_rag.ticker)
+                    filing = company.get_filings(form="10-K").latest()
+                    doc = filing.obj()
+
+                    if hasattr(doc, 'balance_sheet') and doc.balance_sheet:
+                        analyzer = BalanceSheetAnalyzer(verbose=False)
+                        bs_analysis = analyzer.analyze(doc.balance_sheet, brief_rag.company_name)
+                        if bs_analysis['has_data']:
+                            balance_sheet_ratios = bs_analysis['ratios']
+                except Exception as e:
+                    # Balance sheet not available - Graham score will use fallback
+                    pass
+
+                # Calculate Graham score with balance sheet data if available
+                score_data = calculate_investment_score(metrics, balance_sheet_ratios)
+
+                st.markdown("### Investment Score")
+
+                col_score1, col_score2 = st.columns(2)
+                with col_score1:
+                    st.metric("Score", f"{score_data['score']}/100")
+                with col_score2:
+                    rec = score_data['recommendation']
+                    if rec == "BUY":
+                        st.markdown(f"**Signal:** :green[{rec}]")
+                    elif rec == "HOLD":
+                        st.markdown(f"**Signal:** :orange[{rec}]")
+                    else:
+                        st.markdown(f"**Signal:** :red[{rec}]")
+
+                st.markdown(f"*{score_data.get('methodology', 'Graham Defensive Investor Score')}*", unsafe_allow_html=True)
+                if score_data.get('criteria_met') and score_data.get('total_criteria'):
+                    st.markdown(f"<p style='font-size:0.75rem; color:#6c757d;'>Meets {score_data['criteria_met']} of {score_data['total_criteria']} measurable Graham criteria</p>", unsafe_allow_html=True)
+
+                # Phase 4A: Display Individual Signals
+                if score_data.get('signals'):
+                    with st.expander("📊 View Detailed Criteria Breakdown"):
+                        st.markdown("#### Graham's Defensive Investor Criteria")
+                        st.markdown("")
+
+                        for signal_type, message, criterion in score_data['signals']:
+                            if signal_type == "positive":
+                                st.markdown(f"✅ **{criterion}:** {message}")
+                            elif signal_type == "negative":
+                                st.markdown(f"❌ **{criterion}:** {message}")
+                            elif signal_type == "neutral":
+                                st.markdown(f"⚠️ **{criterion}:** {message}")
+                            else:  # info, warning
+                                st.markdown(f"ℹ️ **{criterion}:** {message}")
+
+                        st.markdown("")
+                        st.markdown(f"**Result:** Meets {score_data['criteria_met']} of {score_data['total_criteria']} criteria")
+
+                # Phase 4A: Display Data Limitations
+                if score_data.get('limitations'):
+                    with st.expander("⚠️ Data Limitations & Proxies Used"):
+                        st.markdown("*The following limitations apply to this Graham score calculation:*")
+                        st.markdown("")
+                        for limitation in score_data['limitations']:
+                            st.markdown(limitation)
+                        st.markdown("")
+                        st.markdown("*Despite these limitations, the score provides educational value by introducing Graham's framework and using the best available data.*")
+
+                st.markdown("")
+
+            st.markdown("---")
+            st.markdown("## Analysis Comparison")
+
+            # Side-by-side comparison using columns
+            col_rag, col_no_rag = st.columns(2)
+
+            with col_rag:
+                st.markdown("### 📊 WITH RAG")
                 st.markdown("*Uses actual SEC filings and real-time Finnhub data*")
                 st.markdown("")
 
                 # Display RAG analysis
                 if brief_rag.company_summary:
-                    st.markdown("## Analysis")
+                    import re
                     analysis_text = brief_rag.company_summary.strip()
                     if analysis_text.startswith("```"):
                         first_newline = analysis_text.find('\n')
@@ -346,13 +427,16 @@ def main():
                             analysis_text = analysis_text[first_newline+1:]
                     if analysis_text.endswith("```"):
                         analysis_text = analysis_text[:-3]
+                    # Remove mid-text code blocks
+                    analysis_text = re.sub(r'```\w*\n', '', analysis_text)
+                    analysis_text = re.sub(r'\n```', '', analysis_text)
                     st.markdown(analysis_text.strip(), unsafe_allow_html=False)
+
+                st.markdown("")
 
                 # Sources
                 if brief_rag.summary_citations:
-                    st.markdown("---")
-                    st.markdown("## Sources")
-                    st.markdown("*Grounded in SEC filings:*")
+                    st.markdown("**Sources:**")
                     for citation in brief_rag.summary_citations:
                         lines = citation.split('\n')
                         main_ref = lines[0]
@@ -362,19 +446,18 @@ def main():
                                 url = line.strip().replace("URL:", "").strip()
                                 break
                         if url:
-                            st.markdown(f"**{main_ref}**")
-                            st.markdown(f"🔗 [View on SEC.gov]({url})")
+                            st.markdown(f"🔗 [{main_ref}]({url})")
                         else:
-                            st.markdown(f"**{main_ref}**")
+                            st.markdown(f"- {main_ref}")
 
-            with tab_no_rag:
-                st.markdown("### Report Generated WITHOUT RAG")
+            with col_no_rag:
+                st.markdown("### 🤖 WITHOUT RAG")
                 st.markdown("*Uses only LLM general knowledge (may be outdated or inaccurate)*")
                 st.markdown("")
 
                 # Display No-RAG analysis
                 if brief_no_rag.company_summary:
-                    st.markdown("## Analysis")
+                    import re
                     analysis_text = brief_no_rag.company_summary.strip()
                     if analysis_text.startswith("```"):
                         first_newline = analysis_text.find('\n')
@@ -382,41 +465,13 @@ def main():
                             analysis_text = analysis_text[first_newline+1:]
                     if analysis_text.endswith("```"):
                         analysis_text = analysis_text[:-3]
+                    # Remove mid-text code blocks
+                    analysis_text = re.sub(r'```\w*\n', '', analysis_text)
+                    analysis_text = re.sub(r'\n```', '', analysis_text)
                     st.markdown(analysis_text.strip(), unsafe_allow_html=False)
 
-                st.markdown("---")
-                st.warning("⚠️ This report has NO source citations because it's based only on the LLM's general knowledge.")
-
-            with tab_differences:
-                st.markdown("### Key Differences to Note")
                 st.markdown("")
-                st.markdown("**1. Specificity**")
-                st.markdown("- WITH RAG: Includes specific numbers, dates, and facts from SEC filings")
-                st.markdown("- WITHOUT RAG: May use generic or outdated information")
-                st.markdown("")
-                st.markdown("**2. Accuracy**")
-                st.markdown("- WITH RAG: Authoritative SEC data and real-time financial metrics")
-                st.markdown("- WITHOUT RAG: LLM training data (may be months/years old)")
-                st.markdown("")
-                st.markdown("**3. Citations**")
-                st.markdown("- WITH RAG: Provides source attribution to SEC filings")
-                st.markdown("- WITHOUT RAG: No source verification")
-                st.markdown("")
-                st.markdown("**4. Depth**")
-                st.markdown("- WITH RAG: Company-specific risks and opportunities from actual filings")
-                st.markdown("- WITHOUT RAG: Generic analysis based on what LLM 'remembers'")
-                st.markdown("")
-                st.markdown("**5. Currency**")
-                st.markdown("- WITH RAG: Latest financial data from Finnhub API")
-                st.markdown("- WITHOUT RAG: Frozen at LLM training cutoff date")
-                st.markdown("")
-                st.warning("""
-                **Without RAG, the LLM may:**
-                - Use outdated information from its training data
-                - Hallucinate facts or figures
-                - Provide generic analysis not tailored to recent company performance
-                - Miss recent strategic shifts or risk factors disclosed in latest filings
-                """)
+                st.warning("⚠️ No source citations - based only on LLM general knowledge")
 
             return  # Exit early, don't display single report
 
@@ -536,12 +591,22 @@ def main():
 
             # Remove code block markers that cause green text
             analysis_text = analysis_text.strip()
+
+            # Remove opening code blocks (with or without language specifier)
             if analysis_text.startswith("```"):
                 first_newline = analysis_text.find('\n')
                 if first_newline != -1:
                     analysis_text = analysis_text[first_newline+1:]
+
+            # Remove closing code blocks
             if analysis_text.endswith("```"):
                 analysis_text = analysis_text[:-3]
+
+            # Remove any remaining stray code block markers mid-text
+            import re
+            analysis_text = re.sub(r'```\w*\n', '', analysis_text)  # Remove opening blocks
+            analysis_text = re.sub(r'\n```', '', analysis_text)     # Remove closing blocks
+
             analysis_text = analysis_text.strip()
 
             # Note: LLM may use markdown formatting (italics, bold, inline code).
