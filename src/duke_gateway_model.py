@@ -25,24 +25,28 @@ load_dotenv(override=True)  # Override system env vars with .env file
 DUKE_GATEWAY_URL = "https://litellm.oit.duke.edu/v1"
 DUKE_GATEWAY_ENDPOINT = f"{DUKE_GATEWAY_URL}/responses"
 
-# Available models on Duke Gateway
-AVAILABLE_MODELS = [
-    'Mistral on-site',
-    'GPT 4.1',
-    'GPT 4.1 Nano',
-    'GPT 4.1 Mini',
-    'o4 Mini',
-    'Llama 3.3',
-    'Llama 4 Scout',
-    'Llama 4 Maverick',
-    'text-embedding-3-small',
-    'gpt-5',
-    'gpt-5-chat',
-    'gpt-5-mini',
-    'gpt-5-nano',
-    'gpt-oss-120b',
-    'gpt-5-codex'
-]
+# Available models on Duke Gateway with their context window limits
+MODEL_CONTEXT_LIMITS = {
+    'GPT 4.1': 128000,  # 128K tokens = ~512K chars
+    'GPT 4.1 Mini': 128000,
+    'GPT 4.1 Nano': 128000,
+    'GPT 4o': 128000,
+    'o4 Mini': 128000,
+    'Llama 3.3': 128000,
+    'Llama 4 Scout': 128000,
+    'Llama 4 Maverick': 128000,
+    'Mistral on-site': 32000,  # Smaller context window
+    'gpt-5': 200000,  # Future models
+    'gpt-5-chat': 200000,
+    'gpt-5-mini': 128000,
+    'gpt-5-nano': 128000,
+    'gpt-oss-120b': 128000,
+    'gpt-5-codex': 128000,
+    'text-embedding-3-small': 8191
+}
+
+# Legacy list for backwards compatibility
+AVAILABLE_MODELS = list(MODEL_CONTEXT_LIMITS.keys())
 
 
 class DukeGatewayModel:
@@ -118,10 +122,22 @@ class DukeGatewayModel:
         Returns:
             Generated analysis text
         """
-        # Truncate context if too long (Duke Gateway may have limits)
-        max_context_chars = 32000  # More generous than local models
+        # Model-specific context window limits
+        # Get token limit for this model (default to conservative 32K if unknown)
+        token_limit = MODEL_CONTEXT_LIMITS.get(self.model_name, 32000)
+
+        # Convert tokens to chars (rough estimate: 1 token ≈ 4 chars)
+        # Use 80% of limit to leave room for response
+        max_context_chars = int(token_limit * 4 * 0.8)
+
+        print(f"[DUKE GATEWAY] Model '{self.model_name}' context limit: {token_limit:,} tokens (~{token_limit*4:,} chars)")
+        print(f"[DUKE GATEWAY] Using 80% for input: {max_context_chars:,} chars max")
+
         if len(context) > max_context_chars:
+            print(f"⚠️  [DUKE GATEWAY] Context truncated: {len(context):,} → {max_context_chars:,} chars")
             context = context[:max_context_chars] + "\n[Context truncated for processing...]"
+        else:
+            print(f"✅ [DUKE GATEWAY] Full context preserved: {len(context):,} chars (no truncation)")
 
         # Use provided system instructions or load from config
         if system_instructions:
@@ -135,14 +151,27 @@ class DukeGatewayModel:
 
         # Fallback if prompt not found
         if not instructions:
-            instructions = """You are an expert educational financial analyst. Your goal is to extract and explain company information from authoritative SEC filings and financial data in simple, clear language.
+            instructions = """You are an expert educational financial analyst. You help investors understand companies by extracting and explaining information from SEC filings and financial data.
 
-Key principles:
-- Extract specific facts, numbers, and details from the provided context
-- Ground ALL claims in the provided context - do not make up information
-- Cite sources using [1], [2], etc. when referencing specific information
-- Be specific: mention actual numbers, percentages, timeframes when available
-- If the context mentions specific risks, opportunities, or metrics, include them"""
+CRITICAL RULES - YOU MUST FOLLOW EXACTLY:
+
+1. OUTPUT MUST BE IN ENGLISH ONLY
+   - Write ONLY in English language
+   - Do NOT use Chinese, Arabic, or any non-English characters
+   - Do NOT mix languages or include foreign text
+
+2. BE FACTUAL AND ACCURATE
+   - ONLY use information explicitly stated in the provided context
+   - Do NOT hallucinate, invent, or fabricate any metrics, dates, or facts
+   - If information is not in the context, state "not available" rather than guessing
+   - Use specific numbers and facts ONLY if they appear in the context
+
+3. WRITE CLEARLY AND PROFESSIONALLY
+   - Use clear markdown formatting
+   - Explain financial terms in plain language
+   - Do NOT include citation markers like [1], [2] - the system handles references
+
+QUALITY CHECK: Before finalizing, verify output is entirely in English with no foreign characters and all facts are sourced from context."""
 
         # Build input text
         # If custom system instructions were provided, use simple input format
@@ -168,30 +197,44 @@ Task:
             print(f"[DUKE GATEWAY] Query length: {len(query)} characters")
             print(f"[DUKE GATEWAY] Total input: {len(input_text)} characters (~{len(input_text)//4} tokens)")
             
-            # Show context preview
+            # Show context preview (first and last to detect truncation)
             print(f"\n[DUKE GATEWAY] Context preview (first 500 chars):")
             print(f"{'-'*80}")
             print(context[:500])
-            print(f"[... {len(context) - 500} more characters ...]")
+            print(f"[... middle content ...]")
+            print(f"\n[DUKE GATEWAY] Context preview (last 500 chars):")
+            print(context[-500:])
             print(f"{'-'*80}")
-            
-            print(f"\n[DUKE GATEWAY] Query:")
+
+            print(f"\n[DUKE GATEWAY] Prompt/Query:")
             print(f"{'-'*80}")
-            print(query[:300] if len(query) > 300 else query)
-            if len(query) > 300:
-                print(f"[... {len(query) - 300} more characters ...]")
+            print(query[:500] if len(query) > 500 else query)
+            if len(query) > 500:
+                print(f"[... {len(query) - 500} more characters ...]")
+                print(f"\n[Last 300 chars of prompt]:")
+                print(query[-300:])
             print(f"{'-'*80}")
             
             print(f"\n[DUKE GATEWAY] Sending request...")
-            
+            print(f"  Model: {self.model_name}")
+
+            # Duke Gateway API call
+            # NOTE: Duke Gateway's responses.create() only accepts: model, instructions, input
+            # Parameters like temperature, max_tokens, top_p are NOT supported
             response = self.client.responses.create(
                 model=self.model_name,
                 instructions=instructions,
                 input=input_text
             )
-            
-            print(f"\n[DUKE GATEWAY] API call successful!")
+
+            print(f"\n[DUKE GATEWAY] ✅ API call successful!")
             print(f"{'='*80}")
+
+            # Verify response structure
+            if hasattr(response, 'model') and response.model:
+                print(f"[DUKE GATEWAY] Confirmed model used: {response.model}")
+            else:
+                print(f"[DUKE GATEWAY] ⚠️  Response did not include model confirmation")
             
             # Extract response text
             # Duke Gateway format: response.output[0].content[0].text

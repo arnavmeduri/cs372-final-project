@@ -215,14 +215,26 @@ class RAGSystem:
 
             # If we successfully extracted sections, use them
             if sections_extracted:
+                print(f"\n{'='*60}")
+                print(f"CHUNKING SECTIONS INTO RAG INDEX")
+                print(f"{'='*60}")
+
+                section_chunk_counts = {}
+                docs_before = len(self.documents)
+
                 for section_name, section_content in sections_extracted.items():
                     chunks = self.chunk_text(section_content, chunk_size=800, overlap=150)
-                    
+                    section_chunk_counts[section_name] = len(chunks)
+
+                    print(f"  {section_name}:")
+                    print(f"    - Content: {len(section_content):,} chars")
+                    print(f"    - Chunks: {len(chunks)} × 800 chars (150 char overlap)")
+
                     for chunk_idx, chunk in enumerate(chunks):
                         if len(self.documents) >= self.max_documents:
-                            print(f"Warning: Document limit ({self.max_documents}) reached. Skipping remaining chunks.")
+                            print(f"⚠️  Document limit ({self.max_documents}) reached. Skipping remaining chunks.")
                             return
-                        
+
                         doc = DocumentChunk(
                             text=chunk,
                             source_type='sec_filing',
@@ -233,6 +245,14 @@ class RAGSystem:
                             section=section_name
                         )
                         self.documents.append(doc)
+
+                docs_added = len(self.documents) - docs_before
+                print(f"\n✅ ADDED TO RAG INDEX:")
+                print(f"  - Total sections: {len(sections_extracted)}")
+                print(f"  - Total chunks: {docs_added}")
+                print(f"  - Breakdown: {dict(section_chunk_counts)}")
+                print(f"  - RAG index now has: {len(self.documents)} total chunks")
+                print(f"{'='*60}\n")
             else:
                 # Extraction failed - chunk entire document and infer sections
                 print(f"❌ FALLBACK TO CHUNKING - All section extraction methods failed!")
@@ -390,30 +410,146 @@ class RAGSystem:
         
         return results
     
-    def get_context_with_citations(self, query: str, top_k: int = 3, 
-                                     source_types: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
+    def get_context_with_citations(self, query: str, top_k: int = None,
+                                     source_types: Optional[List[str]] = None,
+                                     purpose: str = None,
+                                     min_coverage: float = 0.3,
+                                     ensure_all_sections: bool = False) -> Tuple[str, List[Dict]]:
         """
-        Get context text and citations for a query.
-        
+        Get context text and citations for a query with adaptive retrieval.
+
         Args:
             query: Search query
-            top_k: Number of documents to retrieve (reduced for memory)
+            top_k: Number of documents to retrieve. If None, calculates adaptively based on content size.
             source_types: Optional filter for source types (e.g., ['sec_filing', 'definition'])
-            
+            purpose: Optional description of what this retrieval is for (e.g., "RISKS", "OPPORTUNITIES")
+            min_coverage: Minimum coverage percentage (0.0-1.0). Default 0.3 = 30% coverage.
+                         Used to calculate top_k if not specified.
+
         Returns:
             Tuple of (context_text, citations_list)
         """
+        # Calculate adaptive top_k if not specified
+        if top_k is None:
+            # Count available chunks for the requested source types
+            if source_types:
+                available_chunks = len([d for d in self.documents if d.source_type in source_types])
+            else:
+                available_chunks = len(self.documents)
+
+            # Calculate top_k to achieve min_coverage
+            top_k = max(5, int(available_chunks * min_coverage))  # At least 5, or coverage%
+            top_k = min(top_k, 50)  # Cap at 50 to avoid overwhelming LLM context
+
+            print(f"📊 ADAPTIVE RETRIEVAL: {available_chunks} chunks available")
+            print(f"   Target coverage: {min_coverage:.0%} → Retrieving top_k={top_k} chunks")
+
         retrieved = self.retrieve(query, top_k=top_k * 2 if source_types else top_k)
 
         # Filter by minimum similarity threshold
         MIN_SIMILARITY = 0.3
         retrieved = [(doc, score) for doc, score in retrieved if score >= MIN_SIMILARITY]
-        
+
         # Filter by source type if specified
         if source_types:
             retrieved = [(doc, score) for doc, score in retrieved if doc.source_type in source_types]
             retrieved = retrieved[:top_k]
-        
+
+        # SECTION-AWARE RETRIEVAL: For comprehensive analysis, ensure ALL sections represented
+        if ensure_all_sections and len(retrieved) > 10:
+            # Group by section
+            section_buckets = {}
+            for doc, score in retrieved:
+                section = doc.section if hasattr(doc, 'section') else ''
+                if section and section not in section_buckets:
+                    section_buckets[section] = []
+                if section:
+                    section_buckets[section].append((doc, score))
+
+            # Calculate minimum chunks per section (at least 20% of total)
+            min_per_section = max(3, int(top_k * 0.2))
+
+            # Ensure each section has minimum representation
+            balanced = []
+            for section, chunks in section_buckets.items():
+                # Take best chunks from this section
+                section_chunks = sorted(chunks, key=lambda x: x[1], reverse=True)
+                balanced.extend(section_chunks[:min_per_section])
+
+            # Fill remaining with highest similarity across all sections
+            remaining_slots = top_k - len(balanced)
+            if remaining_slots > 0:
+                remaining = [c for c in retrieved if c not in balanced]
+                balanced.extend(remaining[:remaining_slots])
+
+            retrieved = balanced[:top_k]
+            print(f"   ⚖️  BALANCED: Ensured {min_per_section}+ chunks per section (3 sections)")
+
+        # Log what was retrieved
+        purpose_label = f" - {purpose}" if purpose else ""
+        print(f"\n{'='*60}")
+        print(f"RAG RETRIEVAL{purpose_label}")
+        print(f"{'='*60}")
+        print(f"Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+        print(f"Requested: top_k={top_k}, source_types={source_types}")
+        print(f"Retrieved: {len(retrieved)} chunks (after filtering)")
+
+        if retrieved:
+            section_breakdown = {}
+            total_chars = 0
+            for doc, score in retrieved:
+                section = doc.section if hasattr(doc, 'section') else 'unknown'
+                if section not in section_breakdown:
+                    section_breakdown[section] = []
+                section_breakdown[section].append(score)
+                total_chars += len(doc.text)
+
+            # Map section codes to friendly names
+            section_names = {
+                'item_1': 'Business Description',
+                'item_1a': 'Risk Factors',
+                'item_7': 'MD&A',
+                'item_7a': 'Market Risk',
+                'item_8': 'Financial Statements'
+            }
+
+            print(f"\nRetrieved chunks by section:")
+            for section, scores in sorted(section_breakdown.items()):
+                avg_score = sum(scores) / len(scores)
+                friendly_name = section_names.get(section, section)
+                chunk_chars = len(scores) * 800  # Approximate
+                print(f"  - {section} ({friendly_name}):")
+                print(f"      {len(scores)} chunks (avg similarity: {avg_score:.3f})")
+                print(f"      ~{chunk_chars:,} chars retrieved")
+
+            print(f"\nTotal context: {total_chars:,} chars from {len(retrieved)} chunks")
+
+            # Calculate coverage for each section
+            print(f"\nCOVERAGE ANALYSIS:")
+            for section in section_breakdown.keys():
+                # Find total chars available in this section
+                section_docs = [d for d in self.documents if hasattr(d, 'section') and d.section == section]
+                if section_docs:
+                    # Estimate total section size (chunks × avg chunk size)
+                    total_available = len(section_docs) * 800  # Approximate
+                    retrieved_count = len(section_breakdown[section])
+                    coverage_pct = (retrieved_count / len(section_docs)) * 100
+                    friendly_name = section_names.get(section, section)
+
+                    # Determine if coverage is good
+                    if coverage_pct >= 50:
+                        status = "✅ GOOD"
+                    elif coverage_pct >= 20:
+                        status = "⚠️  MODERATE"
+                    else:
+                        status = "❌ LOW"
+
+                    print(f"  {section} ({friendly_name}): {coverage_pct:.1f}% coverage {status}")
+                    print(f"    Retrieved {retrieved_count}/{len(section_docs)} chunks available")
+        else:
+            print(f"⚠️  WARNING: No chunks retrieved! Query may not match indexed content.")
+        print(f"{'='*60}\n")
+
         context_parts = []
         citations = []
         

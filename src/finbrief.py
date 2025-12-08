@@ -950,10 +950,13 @@ class FinBriefApp:
             self._log("Retrieving relevant context...")
             
             # Get SEC-specific context for risks and opportunities
+            # Use adaptive retrieval: min_coverage=0.4 means retrieve 40% of available Risk Factor chunks
             risk_context, risk_citations = self.rag.get_context_with_citations(
                 f"What are the key risks and challenges for {company_name}?",
-                top_k=5,
-                source_types=['sec_filing']  # Prioritize SEC content
+                top_k=None,  # Adaptive: will calculate based on min_coverage
+                source_types=['sec_filing'],  # Prioritize SEC content
+                purpose="RISKS ANALYSIS",
+                min_coverage=0.4  # Retrieve 40% of Risk Factors section for comprehensive coverage
             )
         else:
             # Without RAG, no SEC filing context
@@ -961,20 +964,25 @@ class FinBriefApp:
             risk_citations = []
         
         if use_rag:
+            # Opportunities: Retrieve 40% of MD&A section for comprehensive coverage
             opp_context, opp_citations = self.rag.get_context_with_citations(
                 f"What are the growth opportunities for {company_name}?",
-                top_k=5,
-                source_types=['sec_filing']  # Prioritize SEC content
+                top_k=None,  # Adaptive
+                source_types=['sec_filing'],  # Prioritize SEC content
+                purpose="OPPORTUNITIES ANALYSIS",
+                min_coverage=0.4  # 40% coverage
             )
             
             # If SEC content is sparse, fall back to all sources
             if len(risk_context) < 100:
                 risk_context, risk_citations = self.rag.get_context_with_citations(
-                    f"What are the key risks?", top_k=3
+                    f"What are the key risks?", top_k=3,
+                    purpose="RISKS FALLBACK"
                 )
             if len(opp_context) < 100:
                 opp_context, opp_citations = self.rag.get_context_with_citations(
-                    f"What are growth opportunities?", top_k=3
+                    f"What are growth opportunities?", top_k=3,
+                    purpose="OPPORTUNITIES FALLBACK"
                 )
         else:
             opp_context = ""
@@ -1039,10 +1047,13 @@ class FinBriefApp:
             # If we have a good SEC summary, ask model to make it more beginner-friendly
             if use_rag and company_summary and "publicly traded company" not in company_summary:
                 # Get comprehensive RAG context for company summary
+                # Business description: 30% coverage is sufficient for summary
                 summary_context, summary_citations = self.rag.get_context_with_citations(
                     f"What does {company_name} do? What is their business model and main products or services?",
-                    top_k=5,
-                    source_types=['sec_filing']
+                    top_k=None,  # Adaptive
+                    source_types=['sec_filing'],
+                    purpose="COMPANY SUMMARY",
+                    min_coverage=0.3  # 30% coverage for summary
                 )
                 
                 # Combine extracted summary with RAG context for richer information
@@ -1065,10 +1076,13 @@ class FinBriefApp:
             else:
                 # Get rich context about the company
                 if use_rag:
+                    # Business description: 40% coverage for detailed understanding
                     company_context, company_citations = self.rag.get_context_with_citations(
                         get_prompt('rag_query_company_business', company_name=company_name),
-                        top_k=8,
-                        source_types=['sec_filing']
+                        top_k=None,  # Adaptive
+                        source_types=['sec_filing'],
+                        purpose="BUSINESS DESCRIPTION",
+                        min_coverage=0.4  # 40% coverage
                     )
                 else:
                     # Without RAG, minimal context
@@ -1229,7 +1243,8 @@ Financial Context:
             print(f"\n{'='*80}")
             print(f"[FINAL SUMMARY] Model used: {model_type}")
             if model_type == "DukeGatewayModel":
-                print(f"[FINAL SUMMARY] ✅ DUKE GATEWAY WAS USED - GPT 4.1 via Duke API")
+                actual_model = getattr(self.model, 'model_name', 'Unknown')
+                print(f"[FINAL SUMMARY] ✅ DUKE GATEWAY WAS USED - {actual_model} via Duke API")
             else:
                 print(f"[FINAL SUMMARY] ⚠️  LOCAL MODEL WAS USED - {model_type} (NOT Duke Gateway)")
             print(f"{'='*80}\n")
@@ -1378,10 +1393,16 @@ Financial Context:
                 f"from the Risk Factors section over balance sheet ratios. Use specific details from the SEC filing sections."
             )
             
+            # Comprehensive analysis: Use 70% coverage for truly comprehensive view
+            # This ensures we capture risks, opportunities, and business details across ALL sections
+            # CRITICAL: Use ensure_all_sections=True to guarantee Risk Factors are included
             comprehensive_context, comprehensive_citations = self.rag.get_context_with_citations(
                 comprehensive_query,
-                top_k=50,  # Maximum context for rich mode - retrieve 50 best chunks (~40K chars)
-                source_types=['sec_filing', 'financial_metrics']
+                top_k=None,  # Adaptive: will retrieve ~70% of all chunks
+                source_types=['sec_filing', 'financial_metrics'],
+                purpose="COMPREHENSIVE ANALYSIS",
+                min_coverage=0.7,  # 70% coverage for comprehensive analysis
+                ensure_all_sections=True  # Ensures all sections (Business, Risks, MD&A) are included
             )
         else:
             self._log("RAG disabled (--no-rag flag) - using only LLM general knowledge")
@@ -1523,7 +1544,8 @@ Financial Context:
             print(f"\n{'='*80}")
             print(f"[FINAL SUMMARY] Model used: {model_type}")
             if model_type == "DukeGatewayModel":
-                print(f"[FINAL SUMMARY] ✅ DUKE GATEWAY WAS USED - GPT 4.1 via Duke API")
+                actual_model = getattr(self.model, 'model_name', 'Unknown')
+                print(f"[FINAL SUMMARY] ✅ DUKE GATEWAY WAS USED - {actual_model} via Duke API")
             else:
                 print(f"[FINAL SUMMARY] ⚠️  LOCAL MODEL WAS USED - {model_type} (NOT Duke Gateway)")
             print(f"{'='*80}\n")
