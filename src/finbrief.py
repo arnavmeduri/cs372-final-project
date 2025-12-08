@@ -38,6 +38,8 @@ from .educational_brief import (
 )
 from .rich_formatter import RichAnalysisFormatter
 from .confidence_head import HeuristicConfidenceEstimator
+from .section_validator import SectionValidator
+from .balance_sheet_analyzer import BalanceSheetAnalyzer
 
 load_dotenv()
 
@@ -145,17 +147,21 @@ class FinBriefApp:
         # Initialize RAG system
         self._log("Loading RAG system (MiniLM embeddings)...")
         self.rag = RAGSystem()
-        
+
         # Formatter
         self.formatter = EducationalBriefFormatter()
         self.rich_formatter = RichAnalysisFormatter()
-        
+
         # Model (lazy loaded)
         self.model = None
-        
+
         # Confidence estimator
         self.confidence_estimator = HeuristicConfidenceEstimator()
-        
+
+        # Phase 3A: Section validator and balance sheet analyzer
+        self.section_validator = SectionValidator(verbose=self.verbose)
+        self.balance_sheet_analyzer = BalanceSheetAnalyzer(verbose=self.verbose)
+
         self._log("FinBrief initialized successfully!")
     
     def _log(self, message: str):
@@ -1262,13 +1268,63 @@ Financial Context:
                 raise ValueError(f"Could not fetch SEC filings for {ticker}")
         else:
             filings = []
-        
+
         # 2. Fetch Finnhub metrics (if use_rag is True)
         if use_rag:
             finnhub_metrics = self.fetch_metrics(ticker)
         else:
             finnhub_metrics = None
-        
+
+        # 2A. PHASE 3A: Section validation and balance sheet analysis
+        balance_sheet_context = ""
+        section_status = {}
+
+        if use_rag and filings:
+            self._log("\n[PHASE 3A] Validating sections and analyzing balance sheet...")
+
+            # Get document object for section extraction
+            try:
+                # Reconstruct doc from filings (get from SEC client's cache or re-fetch)
+                from edgar import Company, set_identity
+                set_identity(f"{os.getenv('SEC_EDGAR_NAME', 'Student')} {os.getenv('SEC_EDGAR_EMAIL', 'test@duke.edu')}")
+                company = Company(ticker)
+                filing = company.get_filings(form=filing_type).latest()
+                doc = filing.obj()
+
+                # Validate and extract sections with fallbacks
+                validated_sections = {}
+
+                for section_name in ['business', 'risk_factors', 'management_discussion']:
+                    content, status = self.section_validator.get_section_with_fallback(
+                        doc, section_name, company_name, verbose=self.verbose
+                    )
+                    validated_sections[section_name] = content
+                    section_status[section_name] = status
+
+                    if status == 'fallback_business' or status == 'fallback_full_filing':
+                        self._log(f"✅ [FALLBACK] {section_name}: Used {status} strategy")
+                    elif status == 'failed':
+                        self._log(f"⚠️  [WARNING] {section_name}: All extraction methods failed")
+
+                # Analyze balance sheet
+                if hasattr(doc, 'balance_sheet') and doc.balance_sheet:
+                    self._log("Analyzing balance sheet...")
+                    bs_analysis = self.balance_sheet_analyzer.analyze(doc.balance_sheet, company_name)
+
+                    if bs_analysis['has_data']:
+                        balance_sheet_context = "\n\n" + bs_analysis['formatted_context']
+                        self._log(f"✅ Balance sheet analysis complete")
+                    else:
+                        self._log("⚠️  Balance sheet data unavailable")
+                else:
+                    self._log("⚠️  Balance sheet not available in filing")
+
+            except Exception as e:
+                self._log(f"⚠️  Phase 3A processing failed: {e}")
+                import traceback
+                if self.verbose:
+                    traceback.print_exc()
+
         # 3. Build comprehensive RAG index (if use_rag is True)
         if use_rag:
             self._log("Building comprehensive RAG index...")
@@ -1325,7 +1381,13 @@ Financial Context:
             if finnhub_metrics.debt_to_equity is not None:
                 metrics_text += f"Debt-to-Equity Ratio: {finnhub_metrics.debt_to_equity:.2f}\n"
             comprehensive_context += metrics_text
-        
+
+        # 5A. PHASE 3A: Add balance sheet analysis to context
+        if balance_sheet_context:
+            comprehensive_context += balance_sheet_context
+            if self.verbose:
+                print(f"✅ [PHASE 3A] Added balance sheet analysis to context")
+
         # 6. Load rich analysis prompt
         rich_prompt = get_prompt('rich_analysis_prompt', 
                                 company_name=company_name, 
