@@ -149,6 +149,12 @@ class EdgarToolsClient:
         """
         sections = {}
 
+        # Debug: Print all available attributes on the document object
+        print(f"\n[EdgarToolsClient] Extracting sections from {form_type}")
+        print(f"[EdgarToolsClient] Document type: {type(doc).__name__}")
+        doc_attrs = [attr for attr in dir(doc) if not attr.startswith('_')]
+        print(f"[EdgarToolsClient] Available attributes ({len(doc_attrs)}): {doc_attrs[:20]}")  # First 20
+
         if form_type == "10-K":
             # 10-K sections
             section_mappings = {
@@ -162,27 +168,49 @@ class EdgarToolsClient:
                 'item_8': 'financial_statements',
             }
 
+            print(f"[EdgarToolsClient] Attempting to extract 10-K sections...")
             for section_key, doc_attr in section_mappings.items():
                 if hasattr(doc, doc_attr):
                     content = getattr(doc, doc_attr)
                     if content and isinstance(content, str) and len(content) > 100:
                         sections[section_key] = content
+                        print(f"  ✅ {section_key} ({doc_attr}): {len(content):,} chars")
+                    else:
+                        print(f"  ⚠️  {section_key} ({doc_attr}): attribute exists but content too short ({len(content) if content else 0} chars)")
+                else:
+                    print(f"  ❌ {section_key} ({doc_attr}): attribute not found")
 
         elif form_type == "10-Q":
-            # 10-Q sections (similar structure but fewer items)
+            # 10-Q sections - use dictionary-style access (e.g., doc['Item 2'])
+            # TenQ object supports subscript notation for accessing items
+            print(f"[EdgarToolsClient] Attempting to extract 10-Q sections...")
+
+            # 10-Q Part I sections (most important for quarterly updates)
             section_mappings = {
-                'item_1': 'financial_statements',
-                'item_2': 'management_discussion',
-                'item_3': 'market_risk',
-                'item_4': 'controls_and_procedures',
+                'item_2': ('Item 2', 'MD&A'),  # Management Discussion & Analysis - MOST IMPORTANT
+                'item_1': ('Item 1', 'Financial Statements'),
+                'item_3': ('Item 3', 'Market Risk'),
+                'item_4': ('Item 4', 'Controls and Procedures'),
             }
 
-            for section_key, doc_attr in section_mappings.items():
-                if hasattr(doc, doc_attr):
-                    content = getattr(doc, doc_attr)
-                    if content and isinstance(content, str) and len(content) > 100:
-                        sections[section_key] = content
+            for section_key, (item_name, description) in section_mappings.items():
+                try:
+                    # Access via dictionary-style subscript
+                    content = doc[item_name]
 
+                    if content and isinstance(content, str) and len(content) > 500:
+                        sections[section_key] = content
+                        print(f"  ✅ {section_key} ({description}): {len(content):,} chars")
+                    elif content:
+                        print(f"  ⚠️  {section_key} ({description}): content too short ({len(content)} chars)")
+                    else:
+                        print(f"  ❌ {section_key} ({description}): no content")
+                except KeyError:
+                    print(f"  ❌ {section_key} ({description}): item '{item_name}' not found in document")
+                except Exception as e:
+                    print(f"  ⚠️  {section_key} ({description}): error - {str(e)[:100]}")
+
+        print(f"[EdgarToolsClient] Extraction complete: {len(sections)} sections extracted\n")
         return sections
 
     def get_company_cik(self, ticker: str) -> Optional[str]:

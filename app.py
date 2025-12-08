@@ -163,10 +163,18 @@ def main():
         # Filing type
         filing_type = st.radio(
             "Filing Type",
-            options=["10-K", "10-Q"],
+            options=["Hybrid (10-K + 10-Q)", "10-K", "10-Q"],
             index=0,
-            help="10-K: Annual report | 10-Q: Quarterly report"
+            help="Hybrid: Best quality (both 10-K and 10-Q) | 10-K: Annual report only | 10-Q: Quarterly report only"
         )
+
+        # Map display name to filing_type parameter
+        filing_type_map = {
+            "Hybrid (10-K + 10-Q)": "hybrid",
+            "10-K": "10-K",
+            "10-Q": "10-Q"
+        }
+        filing_type = filing_type_map[filing_type]
 
         # Advanced options
         with st.expander("⚙️ Advanced Options"):
@@ -672,12 +680,15 @@ def main():
         st.markdown("---")
         
         st.markdown("""
-        Generate comprehensive financial reports powered by RAG 
+        Generate comprehensive financial reports powered by RAG
         (Retrieval-Augmented Generation) using SEC filings and real-time market data.
-        
+
         **Steps:**
         1. Enter a stock ticker in the sidebar on the left. You can find tickers for publicly-traded companies at [here](https://stockanalysis.com/stocks/).
-        2. Select filing type (10-K for annual, 10-Q for quarterly)
+        2. Select filing type:
+           - **Hybrid (10-K + 10-Q)** - Recommended: Best quality using both annual and quarterly filings
+           - **10-K** - Annual report only (structural analysis)
+           - **10-Q** - Quarterly report only (recent performance)
         3. Click the "Generate Report" button to produce a report
         4. Review your generated report (and download if you want to save it)!
         """)

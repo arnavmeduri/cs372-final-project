@@ -37,6 +37,7 @@ class DocumentChunk:
     category: str = ""  # Category (e.g., 'valuation', 'risk', 'profitability')
     # Additional metadata for SEC filings
     section: str = ""  # SEC section (e.g., 'item_1', 'item_1a', 'item_7')
+    filing_type: str = ""  # SEC filing type (e.g., '10-K', '10-Q', '8-K')
 
 
 class RAGSystem:
@@ -242,7 +243,8 @@ class RAGSystem:
                             source_url=filing.get('url', ''),
                             filing_date=filing.get('filing_date', ''),
                             chunk_index=chunk_idx,
-                            section=section_name
+                            section=section_name,
+                            filing_type=filing.get('form', filing.get('filing_type', ''))
                         )
                         self.documents.append(doc)
 
@@ -278,7 +280,8 @@ class RAGSystem:
                         source_url=filing.get('url', ''),
                         filing_date=filing.get('filing_date', ''),
                         chunk_index=chunk_idx,
-                        section=inferred_section
+                        section=inferred_section,
+                        filing_type=filing.get('form', filing.get('filing_type', ''))
                     )
                     self.documents.append(doc)
 
@@ -412,6 +415,7 @@ class RAGSystem:
     
     def get_context_with_citations(self, query: str, top_k: int = None,
                                      source_types: Optional[List[str]] = None,
+                                     filing_types: Optional[List[str]] = None,
                                      purpose: str = None,
                                      min_coverage: float = 0.3,
                                      ensure_all_sections: bool = False) -> Tuple[str, List[Dict]]:
@@ -422,6 +426,7 @@ class RAGSystem:
             query: Search query
             top_k: Number of documents to retrieve. If None, calculates adaptively based on content size.
             source_types: Optional filter for source types (e.g., ['sec_filing', 'definition'])
+            filing_types: Optional filter for filing types (e.g., ['10-K', '10-Q'])
             purpose: Optional description of what this retrieval is for (e.g., "RISKS", "OPPORTUNITIES")
             min_coverage: Minimum coverage percentage (0.0-1.0). Default 0.3 = 30% coverage.
                          Used to calculate top_k if not specified.
@@ -431,20 +436,29 @@ class RAGSystem:
         """
         # Calculate adaptive top_k if not specified
         if top_k is None:
-            # Count available chunks for the requested source types
-            if source_types:
+            # Count available chunks for the requested source types and filing types
+            if source_types and filing_types:
+                available_chunks = len([d for d in self.documents
+                                       if d.source_type in source_types
+                                       and (d.filing_type in filing_types or d.source_type != 'sec_filing')])
+            elif source_types:
                 available_chunks = len([d for d in self.documents if d.source_type in source_types])
+            elif filing_types:
+                available_chunks = len([d for d in self.documents
+                                       if d.filing_type in filing_types or d.source_type != 'sec_filing'])
             else:
                 available_chunks = len(self.documents)
 
             # Calculate top_k to achieve min_coverage
             top_k = max(5, int(available_chunks * min_coverage))  # At least 5, or coverage%
-            top_k = min(top_k, 50)  # Cap at 50 to avoid overwhelming LLM context
+            # Increase cap to 75 for better coverage on larger sections
+            # (we have ~23K token budget, can afford more chunks)
+            top_k = min(top_k, 75)
 
             print(f"📊 ADAPTIVE RETRIEVAL: {available_chunks} chunks available")
             print(f"   Target coverage: {min_coverage:.0%} → Retrieving top_k={top_k} chunks")
 
-        retrieved = self.retrieve(query, top_k=top_k * 2 if source_types else top_k)
+        retrieved = self.retrieve(query, top_k=top_k * 2 if source_types or filing_types else top_k)
 
         # Filter by minimum similarity threshold
         MIN_SIMILARITY = 0.3
@@ -453,7 +467,16 @@ class RAGSystem:
         # Filter by source type if specified
         if source_types:
             retrieved = [(doc, score) for doc, score in retrieved if doc.source_type in source_types]
-            retrieved = retrieved[:top_k]
+
+        # Filter by filing type if specified (e.g., only 10-K for company overview)
+        # IMPORTANT: Do this BEFORE truncating to top_k to ensure we get the right chunks
+        if filing_types:
+            retrieved = [(doc, score) for doc, score in retrieved
+                        if doc.filing_type in filing_types or doc.source_type != 'sec_filing']
+            # Note: Allow non-SEC sources (e.g., financial_metrics) to pass through
+
+        # NOW truncate to top_k after all filtering
+        retrieved = retrieved[:top_k]
 
         # SECTION-AWARE RETRIEVAL: For comprehensive analysis, ensure ALL sections represented
         if ensure_all_sections and len(retrieved) > 10:
@@ -491,7 +514,7 @@ class RAGSystem:
         print(f"RAG RETRIEVAL{purpose_label}")
         print(f"{'='*60}")
         print(f"Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-        print(f"Requested: top_k={top_k}, source_types={source_types}")
+        print(f"Requested: top_k={top_k}, source_types={source_types}, filing_types={filing_types}")
         print(f"Retrieved: {len(retrieved)} chunks (after filtering)")
 
         if retrieved:
@@ -589,6 +612,122 @@ class RAGSystem:
         context = "\n\n".join(context_parts)
         return context, citations
     
+    def get_company_overview_context(self, company_name: str, top_k: int = None, min_coverage: float = 0.35, filing_types: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
+        """
+        Get context for company overview section.
+        Default (hybrid): Uses 10-K only (Item 1 Business Description).
+        Single-filing mode: Uses whichever filing type is available.
+
+        Args:
+            company_name: Name of the company
+            top_k: Number of chunks to retrieve (if None, uses adaptive retrieval with min_coverage)
+            min_coverage: Minimum coverage percentage for adaptive retrieval (default: 0.35 = 35%)
+            filing_types: Filing types to retrieve from (default: ['10-K'] for hybrid strategy)
+
+        Returns:
+            Tuple of (context_text, citations_list)
+        """
+        if filing_types is None:
+            filing_types = ['10-K']  # Default: 10-K only for structural overview
+
+        filing_label = '+'.join(filing_types) if len(filing_types) > 1 else filing_types[0]
+        query = f"What does {company_name} do? Describe its business, products, services, segments, and operations."
+        return self.get_context_with_citations(
+            query=query,
+            top_k=top_k,
+            source_types=['sec_filing'],
+            filing_types=filing_types,
+            purpose=f"COMPANY OVERVIEW ({filing_label})",
+            min_coverage=min_coverage
+        )
+
+    def get_financial_analysis_context(self, company_name: str, top_k: int = None, min_coverage: float = 0.40, filing_types: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
+        """
+        Get context for financial analysis section.
+        Default (hybrid): Uses both 10-K (long-term trends) and 10-Q (recent performance).
+        Single-filing mode: Uses whichever filing type is available.
+
+        Args:
+            company_name: Name of the company
+            top_k: Number of chunks to retrieve (if None, uses adaptive retrieval with min_coverage)
+            min_coverage: Minimum coverage percentage for adaptive retrieval (default: 0.40 = 40%)
+            filing_types: Filing types to retrieve from (default: ['10-K', '10-Q'] for hybrid strategy)
+
+        Returns:
+            Tuple of (context_text, citations_list)
+        """
+        if filing_types is None:
+            filing_types = ['10-K', '10-Q']  # Default: Both for comprehensive financial view
+
+        filing_label = '+'.join(filing_types) if len(filing_types) > 1 else filing_types[0]
+        query = f"Describe {company_name}'s financial performance, revenue trends, margins, liquidity, and recent financial results."
+        return self.get_context_with_citations(
+            query=query,
+            top_k=top_k,
+            source_types=['sec_filing', 'financial_metrics'],
+            filing_types=filing_types,
+            purpose=f"FINANCIAL ANALYSIS ({filing_label})",
+            min_coverage=min_coverage
+        )
+
+    def get_risk_analysis_context(self, company_name: str, top_k: int = None, min_coverage: float = 0.45, filing_types: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
+        """
+        Get context for risk analysis section.
+        Default (hybrid): Uses 10-K only (Item 1A Risk Factors), since 10-Q rarely updates risks.
+        Single-filing mode: Uses whichever filing type is available.
+
+        Args:
+            company_name: Name of the company
+            top_k: Number of chunks to retrieve (if None, uses adaptive retrieval with min_coverage)
+            min_coverage: Minimum coverage percentage for adaptive retrieval (default: 0.45 = 45%)
+            filing_types: Filing types to retrieve from (default: ['10-K'] for hybrid strategy)
+
+        Returns:
+            Tuple of (context_text, citations_list)
+        """
+        if filing_types is None:
+            filing_types = ['10-K']  # Default: 10-K only for risk factors
+
+        filing_label = '+'.join(filing_types) if len(filing_types) > 1 else filing_types[0]
+        query = f"What are the key risks, challenges, and threats for {company_name}?"
+        return self.get_context_with_citations(
+            query=query,
+            top_k=top_k,
+            source_types=['sec_filing'],
+            filing_types=filing_types,
+            purpose=f"RISK ANALYSIS ({filing_label})",
+            min_coverage=min_coverage
+        )
+
+    def get_opportunities_context(self, company_name: str, top_k: int = None, min_coverage: float = 0.35, filing_types: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
+        """
+        Get context for growth opportunities section.
+        Default (hybrid): Uses both 10-K (strategic plans) and 10-Q (recent initiatives/progress).
+        Single-filing mode: Uses whichever filing type is available.
+
+        Args:
+            company_name: Name of the company
+            top_k: Number of chunks to retrieve (if None, uses adaptive retrieval with min_coverage)
+            min_coverage: Minimum coverage percentage for adaptive retrieval (default: 0.35 = 35%)
+            filing_types: Filing types to retrieve from (default: ['10-K', '10-Q'] for hybrid strategy)
+
+        Returns:
+            Tuple of (context_text, citations_list)
+        """
+        if filing_types is None:
+            filing_types = ['10-K', '10-Q']  # Default: Both for complete opportunity picture
+
+        filing_label = '+'.join(filing_types) if len(filing_types) > 1 else filing_types[0]
+        query = f"What are {company_name}'s growth opportunities, strategic initiatives, expansion plans, and innovation efforts?"
+        return self.get_context_with_citations(
+            query=query,
+            top_k=top_k,
+            source_types=['sec_filing'],
+            filing_types=filing_types,
+            purpose=f"GROWTH OPPORTUNITIES ({filing_label})",
+            min_coverage=min_coverage
+        )
+
     def get_definitions_for_text(self, text: str, max_terms: int = 5) -> List[Dict]:
         """
         Find relevant definitions for terms mentioned in text.

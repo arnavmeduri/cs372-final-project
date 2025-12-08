@@ -256,17 +256,17 @@ class FinBriefApp:
     def fetch_sec_filings(self, ticker: str, filing_type: str = "10-K", limit: int = 1) -> List[Dict]:
         """
         Fetch SEC filings for a company.
-        
+
         Args:
             ticker: Stock ticker symbol
             filing_type: Type of filing (10-K, 10-Q, 8-K)
             limit: Number of filings to fetch
-            
+
         Returns:
             List of filing dictionaries
         """
         self._log(f"Fetching {filing_type} filings for {ticker}...")
-        
+
         if filing_type == "10-K":
             filings = self.sec_client.get_annual_filings(ticker, limit=limit)
         elif filing_type == "10-Q":
@@ -275,9 +275,43 @@ class FinBriefApp:
             filings = self.sec_client.get_material_event_filings(ticker, limit=limit)
         else:
             filings = self.sec_client.get_filings(ticker, form_type=filing_type, limit=limit)
-        
+
         self._log(f"Retrieved {len(filings)} {filing_type} filings")
         return filings
+
+    def fetch_hybrid_filings(self, ticker: str) -> List[Dict]:
+        """
+        Fetch both 10-K (latest annual) and 10-Q (most recent quarterly) filings.
+        This implements the hybrid strategy from hybrid_strategy.md.
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            List of filing dictionaries (10-K first, then 10-Q)
+        """
+        self._log(f"Fetching hybrid filings (10-K + 10-Q) for {ticker}...")
+
+        all_filings = []
+
+        # Fetch latest 10-K
+        annual_filings = self.sec_client.get_annual_filings(ticker, limit=1)
+        if annual_filings:
+            self._log(f"  ✅ Retrieved 1 10-K filing (annual)")
+            all_filings.extend(annual_filings)
+        else:
+            self._log(f"  ⚠️  No 10-K filing found for {ticker}")
+
+        # Fetch most recent 10-Q
+        quarterly_filings = self.sec_client.get_quarterly_filings(ticker, limit=1)
+        if quarterly_filings:
+            self._log(f"  ✅ Retrieved 1 10-Q filing (quarterly)")
+            all_filings.extend(quarterly_filings)
+        else:
+            self._log(f"  ⚠️  No 10-Q filing found for {ticker}")
+
+        self._log(f"Total hybrid filings retrieved: {len(all_filings)}")
+        return all_filings
     
     def fetch_metrics(self, ticker: str) -> Optional[FinancialMetrics]:
         """
@@ -1252,43 +1286,53 @@ Financial Context:
         return brief
     
     def generate_rich_analysis(
-        self, 
-        ticker: str, 
-        filing_type: str = "10-K",
+        self,
+        ticker: str,
+        filing_type: str = "hybrid",
         use_rag: bool = True
     ) -> EducationalBrief:
         """
         Generate comprehensive rich analysis with LLM-driven research.
-        
+
         This mode:
         - Fetches comprehensive SEC and financial data (if use_rag=True)
-        - Retrieves maximum RAG context (15 chunks) (if use_rag=True)
+        - Retrieves maximum RAG context with adaptive retrieval
         - Makes a single comprehensive LLM call
         - Produces 1000-2000 word analysis
         - NO truncation or artificial limits
-        
+
         Args:
             ticker: Stock ticker symbol
-            filing_type: Type of SEC filing to analyze
+            filing_type: Filing strategy - 'hybrid' (10-K+10-Q), '10-K', or '10-Q'
             use_rag: Whether to use RAG for SEC filing retrieval (default: True)
-            
+
         Returns:
             EducationalBrief with rich analysis content
         """
         ticker = ticker.upper()
         company_name = self._get_company_name(ticker)
-        
+
         self._log(f"Generating RICH analysis for {company_name} ({ticker})")
-        
+
         # Ensure model is loaded
         if self.model is None:
             self._load_model()
-        
-        # 1. Fetch SEC filings (if use_rag is True)
+
+        # 1. Fetch SEC filings based on strategy (if use_rag is True)
         if use_rag:
-            filings = self.fetch_sec_filings(ticker, filing_type=filing_type, limit=1)
-            if not filings:
-                raise ValueError(f"Could not fetch SEC filings for {ticker}")
+            if filing_type.lower() == "hybrid":
+                self._log("Using HYBRID STRATEGY: Fetching both 10-K and 10-Q...")
+                filings = self.fetch_hybrid_filings(ticker)
+                if not filings:
+                    raise ValueError(f"Could not fetch any SEC filings for {ticker}")
+                self._log(f"Hybrid filings retrieved: {len(filings)} documents")
+            else:
+                # Single filing type (10-K or 10-Q only)
+                self._log(f"Using SINGLE FILING STRATEGY: Fetching {filing_type} only...")
+                filings = self.fetch_sec_filings(ticker, filing_type=filing_type, limit=1)
+                if not filings:
+                    raise ValueError(f"Could not fetch {filing_type} filing for {ticker}")
+                self._log(f"Single filing retrieved: {filing_type}")
         else:
             filings = []
 
@@ -1298,80 +1342,16 @@ Financial Context:
         else:
             finnhub_metrics = None
 
-        # 2A. PHASE 3A: Section validation and balance sheet analysis
-        balance_sheet_context = ""
-        section_status = {}
-
-        if use_rag and filings:
-            self._log("\n[PHASE 3A] Validating sections and analyzing balance sheet...")
-
-            # Get document object for section extraction
-            try:
-                # Reconstruct doc from filings (get from SEC client's cache or re-fetch)
-                from edgar import Company, set_identity
-                set_identity(f"{os.getenv('SEC_EDGAR_NAME', 'Student')} {os.getenv('SEC_EDGAR_EMAIL', 'test@duke.edu')}")
-                company = Company(ticker)
-                filing = company.get_filings(form=filing_type).latest()
-                doc = filing.obj()
-
-                # Validate and extract sections with fallbacks
-                validated_sections = {}
-
-                for section_name in ['business', 'risk_factors', 'management_discussion']:
-                    content, status = self.section_validator.get_section_with_fallback(
-                        doc, section_name, company_name, verbose=self.verbose
-                    )
-                    validated_sections[section_name] = content
-                    section_status[section_name] = status
-
-                    if status == 'fallback_business' or status == 'fallback_full_filing':
-                        self._log(f"✅ [FALLBACK] {section_name}: Used {status} strategy")
-                    elif status == 'failed':
-                        self._log(f"⚠️  [WARNING] {section_name}: All extraction methods failed")
-
-                # Analyze balance sheet
-                if hasattr(doc, 'balance_sheet') and doc.balance_sheet:
-                    self._log("Analyzing balance sheet...")
-                    bs_analysis = self.balance_sheet_analyzer.analyze(doc.balance_sheet, company_name)
-
-                    if bs_analysis['has_data']:
-                        balance_sheet_context = "\n\n" + bs_analysis['formatted_context']
-                        self._log(f"✅ Balance sheet analysis complete")
-                    else:
-                        self._log("⚠️  Balance sheet data unavailable")
-                else:
-                    self._log("⚠️  Balance sheet not available in filing")
-
-            except Exception as e:
-                self._log(f"⚠️  Phase 3A processing failed: {e}")
-                import traceback
-                if self.verbose:
-                    traceback.print_exc()
-
-        # 3. Build comprehensive RAG index (if use_rag is True)
+        # 3. Build HYBRID RAG index (if use_rag is True)
         if use_rag:
-            self._log("Building comprehensive RAG index...")
+            self._log("Building HYBRID RAG index (10-K + 10-Q)...")
 
             # Clear previous documents
             self.rag.documents = []
 
-            # Add validated sections directly (cleaner than adding raw filings)
-            if validated_sections:
-                # Convert validated sections to filing format for RAG
-                section_filings = []
-                for section_name, content in validated_sections.items():
-                    section_filings.append({
-                        'content': content,
-                        'section': section_name,
-                        'ticker': ticker,
-                        'filing_date': 'Latest',
-                        'url': filings[0].get('url', '') if filings else ''
-                    })
-                self.rag.add_sec_filings(section_filings)
-                self._log(f"Added {len(validated_sections)} validated sections to RAG index")
-            elif filings:
-                # Fallback to raw filings if sections not available
-                self.rag.add_sec_filings(filings)
+            # Add all hybrid filings (10-K and 10-Q)
+            # EdgarToolsClient already extracts sections and tags with filing type
+            self.rag.add_sec_filings(filings)
 
             # Add Finnhub metrics if available
             if finnhub_metrics:
@@ -1381,29 +1361,105 @@ Financial Context:
 
             # Rebuild index
             self.rag.build_index()
-            
-            # 4. Retrieve comprehensive context (15 chunks for rich mode)
-            self._log("Retrieving comprehensive context (15 chunks)...")
-            
-            comprehensive_query = (
-                f"Extract and synthesize comprehensive information about {company_name} from the SEC filing content provided. "
-                f"Focus on: business description, qualitative risks from Risk Factors section, strategic opportunities, "
-                f"competitive position, market dynamics, and financial metrics. "
-                f"For risks, prioritize qualitative factors, regulatory challenges, market conditions, and strategic risks "
-                f"from the Risk Factors section over balance sheet ratios. Use specific details from the SEC filing sections."
+
+            # 4. Retrieve section-specific context with ADAPTIVE RETRIEVAL
+            # Uses filing-type routing with adaptive chunk counts based on section size
+            # Coverage: 35-45% per section (balances quality with context efficiency)
+            strategy_label = "HYBRID STRATEGY" if filing_type.lower() == "hybrid" else f"{filing_type} STRATEGY"
+            self._log(f"\n[{strategy_label}] Retrieving section-specific context with adaptive retrieval...")
+
+            # Determine filing_types for each section based on strategy
+            if filing_type.lower() == "hybrid":
+                # Hybrid: Use intelligent routing (10-K for structure, both for dynamics)
+                overview_filing_types = None  # Default: ['10-K']
+                financial_filing_types = None  # Default: ['10-K', '10-Q']
+                risk_filing_types = None  # Default: ['10-K']
+                opportunities_filing_types = None  # Default: ['10-K', '10-Q']
+            else:
+                # Single-filing mode: Use only the specified filing type
+                single_type = [filing_type]
+                overview_filing_types = single_type
+                financial_filing_types = single_type
+                risk_filing_types = single_type
+                opportunities_filing_types = single_type
+
+            # Company Overview: 35% coverage (adaptive)
+            overview_context, overview_citations = self.rag.get_company_overview_context(
+                company_name=company_name,
+                filing_types=overview_filing_types
+                # top_k=None (default) triggers adaptive retrieval with min_coverage=0.35
             )
-            
-            # Comprehensive analysis: Use 70% coverage for truly comprehensive view
-            # This ensures we capture risks, opportunities, and business details across ALL sections
-            # CRITICAL: Use ensure_all_sections=True to guarantee Risk Factors are included
-            comprehensive_context, comprehensive_citations = self.rag.get_context_with_citations(
-                comprehensive_query,
-                top_k=None,  # Adaptive: will retrieve ~70% of all chunks
-                source_types=['sec_filing', 'financial_metrics'],
-                purpose="COMPREHENSIVE ANALYSIS",
-                min_coverage=0.7,  # 70% coverage for comprehensive analysis
-                ensure_all_sections=True  # Ensures all sections (Business, Risks, MD&A) are included
+
+            # Financial Analysis: 40% coverage (adaptive)
+            financial_context, financial_citations = self.rag.get_financial_analysis_context(
+                company_name=company_name,
+                filing_types=financial_filing_types
+                # top_k=None (default) triggers adaptive retrieval with min_coverage=0.40
             )
+
+            # Risk Analysis: 45% coverage (adaptive)
+            risk_context, risk_citations = self.rag.get_risk_analysis_context(
+                company_name=company_name,
+                filing_types=risk_filing_types
+                # top_k=None (default) triggers adaptive retrieval with min_coverage=0.45
+            )
+
+            # Growth Opportunities: 35% coverage (adaptive)
+            opportunities_context, opportunities_citations = self.rag.get_opportunities_context(
+                company_name=company_name,
+                filing_types=opportunities_filing_types
+                # top_k=None (default) triggers adaptive retrieval with min_coverage=0.35
+            )
+
+            # Combine all contexts (adaptive chunk counts based on section size)
+            # Create dynamic section labels based on filing strategy
+            if filing_type.lower() == "hybrid":
+                overview_label = "COMPANY OVERVIEW (10-K Item 1)"
+                financial_label = "FINANCIAL ANALYSIS (10-K + 10-Q)"
+                risk_label = "RISK ANALYSIS (10-K Item 1A)"
+                opportunities_label = "GROWTH OPPORTUNITIES (10-K + 10-Q)"
+            elif filing_type == "10-K":
+                overview_label = "COMPANY OVERVIEW (10-K Item 1)"
+                financial_label = "FINANCIAL ANALYSIS (10-K)"
+                risk_label = "RISK ANALYSIS (10-K Item 1A)"
+                opportunities_label = "GROWTH OPPORTUNITIES (10-K)"
+            else:  # 10-Q
+                overview_label = "COMPANY OVERVIEW (10-Q)"
+                financial_label = "FINANCIAL ANALYSIS (10-Q)"
+                risk_label = "RISK ANALYSIS (10-Q)"
+                opportunities_label = "GROWTH OPPORTUNITIES (10-Q)"
+
+            comprehensive_context = f"""{'='*60}
+{overview_label}
+{'='*60}
+{overview_context}
+
+{'='*60}
+{financial_label}
+{'='*60}
+{financial_context}
+
+{'='*60}
+{risk_label}
+{'='*60}
+{risk_context}
+
+{'='*60}
+{opportunities_label}
+{'='*60}
+{opportunities_context}
+"""
+
+            # Combine all citations
+            comprehensive_citations = (
+                overview_citations +
+                financial_citations +
+                risk_citations +
+                opportunities_citations
+            )
+
+            self._log(f"Total context chunks retrieved: {len(comprehensive_citations)}")
+            self._log(f"Total context size: {len(comprehensive_context):,} characters")
         else:
             self._log("RAG disabled (--no-rag flag) - using only LLM general knowledge")
             # Without RAG, provide minimal context
@@ -1427,12 +1483,6 @@ Financial Context:
             if finnhub_metrics.debt_to_equity is not None:
                 metrics_text += f"Debt-to-Equity Ratio: {finnhub_metrics.debt_to_equity:.2f}\n"
             comprehensive_context += metrics_text
-
-        # 5A. PHASE 3A: Add balance sheet analysis to context (ONLY in RAG mode)
-        if use_rag and balance_sheet_context:
-            comprehensive_context += balance_sheet_context
-            if self.verbose:
-                print(f"✅ [PHASE 3A] Added balance sheet analysis to context")
 
         # 6. Load appropriate rich analysis prompt and system instructions based on RAG mode
         if use_rag:
@@ -1669,10 +1719,10 @@ Available Duke Gateway models:
     )
     
     parser.add_argument('ticker', type=str, help='Stock ticker symbol (e.g., AAPL)')
-    parser.add_argument('--format', '-f', choices=['text', 'markdown', 'md'], 
+    parser.add_argument('--format', '-f', choices=['text', 'markdown', 'md'],
                        default='text', help='Output format')
-    parser.add_argument('--filing', choices=['10-K', '10-Q'], default='10-K',
-                       help='SEC filing type to analyze')
+    parser.add_argument('--filing', choices=['hybrid', '10-K', '10-Q'], default='hybrid',
+                       help='SEC filing strategy: hybrid (both 10-K+10-Q, default), 10-K only, or 10-Q only')
     parser.add_argument('--quick', '-q', action='store_true',
                        help='Quick mode: metrics only, no SEC analysis')
     parser.add_argument('--no-model', action='store_true',
