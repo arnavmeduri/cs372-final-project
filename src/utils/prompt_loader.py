@@ -20,7 +20,8 @@ class PromptLoader:
         if prompts_file is None:
             # Default to config/prompts.md in project root
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(current_dir)
+            src_dir = os.path.dirname(current_dir)  # Go up from utils to src
+            project_root = os.path.dirname(src_dir)  # Go up from src to project root
             prompts_file = os.path.join(project_root, 'config', 'prompts.md')
         
         self.prompts_file = prompts_file

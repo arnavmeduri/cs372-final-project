@@ -1,9 +1,8 @@
 """
-FinBrief application: integrates SEC filings (edgartools), RAG retrieval (FAISS + MiniLM), sentiment analysis (DistilBERT),
+This file integrates SEC filings (edgartools), RAG retrieval (FAISS + MiniLM), sentiment analysis (DistilBERT), 
 financial metrics (Finnhub), and LLM generation (Duke AI Gateway) to produce informative reports.
 
-ATTRIBUTION: Since this file coordinates multiple different tasks (SEC API integration, RAG pipeline,
-LLM inference, etc. I used AI assistance to help modularize code (i.e., API integration logic, error handling).
+ATTRIBUTION: The majority of code in this file is AI-generated. I used assistance to help modularize code for prompt loading and also to help with error handling.
 """
 import os
 import re
@@ -47,14 +46,6 @@ class FinBriefApp:
     ):
         """
         Initialize FinBrief application.
-        
-        Args:
-            finnhub_api_key: Finnhub API key (or from FINNHUB_API_KEY env var)
-            model_name: LLM model to use (default: gpt2-medium) - only used if not using Duke Gateway
-            use_finnhub: Whether to fetch Finnhub metrics
-            use_duke_gateway: Whether to use Duke AI Gateway (auto-detect if None)
-            duke_model: Duke Gateway model name (default: GPT 4.1)
-            verbose: Print progress messages
         """
         self.verbose = verbose
         self.use_finnhub = use_finnhub
@@ -607,12 +598,6 @@ class FinBriefApp:
     def _is_valid_summary(self, text: str) -> bool:
         """
         Check if generated text is a valid summary (not garbage).
-        
-        GPT-2 often produces:
-        - Echoed prompts
-        - Raw SEC boilerplate
-        - Mostly special characters
-        - Repetitive patterns
         """
         if not text or len(text) < 50:
             return False
@@ -1115,6 +1100,7 @@ Financial Context:
 
         balance_sheet_context = ""
         section_status = {}
+        sentiment_analysis_result = None
 
         if use_rag and filings:
             self._log("\n[PHASE 3A] Validating sections and analyzing balance sheet...")
@@ -1185,7 +1171,6 @@ Financial Context:
 
             self.rag.build_index()
             
-            sentiment_analysis_result = None
             if self.rag.documents:
                 self._load_sentiment_classifier()
                 self._log(f"Analyzing sentiment of {len(self.rag.documents)} chunks...")

@@ -3,7 +3,7 @@ Arnav Meduri
 
 ## What It Does
 
-My project is an educational financial analysis tool that generates beginner-friendly investment reports for publicly traded companies. The goal of this project was to help beginner investors and students understand key aspects of publicly traded companies without getting overwhelmed by complex financial jargon/termiology. The system retrieves authoritative information from SEC filings, mandatory financial and business reports that public and private companies submit to the US Securities and Exchange Commission (via the EDGAR database), and up-to-date financial metrics from Finnhub, and then performs sentiment analysis on the retrieved filing chunks using a fine-tuned DistilBERT model. The RAG system makes use of semantic embeddings (all-MiniLM-L6-v2) and FAISS for efficient similarity search using L2-normalized cosine similarity. Reports are generated using Duke AI Gateway, which provides access to frontier models like GPT-4.1 and Mistral.
+My project is an educational financial analysis tool that generates beginner-friendly investment reports for publicly traded companies. The inspiration for this project came from my own experience trying to understand different financial metrics and risk disclosures for my own investment planning. With the volume of financial information available online, it can be difficult to identify what actually matters without getting overwhelmed by complex financial jargon and terminology. The RAG system I developed retrieves authoritative information from SEC filings, mandatory financial and business reports that public and private companies submit to the U.S. Securities and Exchange Commission through the EDGAR database, as well as up-to-date financial metrics from Finnhub, and then performs sentiment analysis on the retrieved filing chunks using a fine-tuned DistilBERT model. The RAG system makes use of semantic embeddings (all-MiniLM-L6-v2) and FAISS for efficient similarity search with L2-normalized cosine similarity. Reports are generated using Duke AI Gateway, which provides access to frontier models such as GPT-4.1 and Mistral.
 
 ## Quick Start
 
@@ -23,8 +23,7 @@ See `SETUP.md` for comprehensive setup instructions, API key configuration, and 
 
 ## Video Links
 
-- **Demo Video:** [Placeholder - Coming Soon]
-- **Technical Walkthrough:** [Placeholder - Coming Soon]
+- **Project Videos:** [https://drive.google.com/drive/folders/145TbuL4B_M3MqTBJTfBxpx0UDz7skKBy?usp=sharing](https://drive.google.com/drive/folders/145TbuL4B_M3MqTBJTfBxpx0UDz7skKBy?usp=sharing)
 
 ## Evaluation
 
@@ -44,6 +43,8 @@ My Streamlit application includes a side-by-side comparison feature that demonst
 - **Context Integration**: Dynamic chunk retrieval based on query relevance
 
 ### Sentiment Analysis Model
+
+I fine-tuned a DistilBERT model on Google Colab specifically for financial text sentiment analysis. The model was trained on the Financial PhraseBank dataset (4,840 labeled financial sentences) to classify text as positive, neutral, or negative. The system analyzes each chunk of retrieved SEC filing text and provides an overall sentiment distribution (e.g., "Mixed: 34% Positive, 43% Neutral, 23% Negative") that helps investors understand the tone and outlook expressed in the company's official filings. This sentiment analysis is displayed as part of the generated reports.
 
 **DistilBERT Fine-Tuning Results** (Financial PhraseBank Dataset)
 
@@ -65,6 +66,7 @@ My Streamlit application includes a side-by-side comparison feature that demonst
 - Epochs: 3
 - Optimizer: AdamW
 - Training Environment: Google Colab with GPU acceleration
+- Model weights saved in `models/` directory
 
 **Classification Performance by Class**
 - Positive: High precision/recall on bullish financial statements
@@ -75,13 +77,13 @@ My Streamlit application includes a side-by-side comparison feature that demonst
 
 Confusion Matrix:
 
-![DistilBERT Confusion Matrix](models/distillbert-fine-tuning/results/confusion_matrix.png)
+![DistilBERT Confusion Matrix](models/results/confusion_matrix.png)
 
 ROC Curves:
 
-![DistilBERT ROC Curves](models/distillbert-fine-tuning/results/roc_curves.png)
+![DistilBERT ROC Curves](models/results/roc_curves.png)
 
-See `notebooks/sentiment_analysis_training.ipynb` for detailed training process.
+See `notebooks/sentiment_analysis_training.ipynb` for detailed training process and implementation.
 
 ### Model Architecture
 
@@ -89,14 +91,11 @@ See `notebooks/sentiment_analysis_training.ipynb` for detailed training process.
 |-----------|-------|------------|
 | Embedding | all-MiniLM-L6-v2 | 22M |
 | Sentiment Classifier | DistilBERT (fine-tuned) | 67M |
-| Generator (Gateway) | GPT-4.1 (Duke AI) | Frontier |
-| Generator (Local Fallback) | TinyLlama-1.1B-Chat | 1.1B |
+| Generator | GPT-4.1 (Duke AI Gateway) | Frontier |
 
-### Test Results
+### Validation
 
-```
-48 passed, 5 skipped (network tests)
-```
+I have tested the RAG pipeline with multiple companies across different sectors (technology, finance, consumer goods, healthcare) by comparing the specific insights from growth opportunities/risks in the generated reports with the original SEC filings to verify how much information is accurately captured. The sentiment analysis model performs well at capturing the tone/outlook expressed in SEC filings.
 
 ## Individual Contributions
 
@@ -133,13 +132,11 @@ CS372/
 │       ├── balance_sheet_analyzer.py # Financial ratio analysis
 │       └── model_handler.py      # Local model handling
 │
-├── data/                     # Data and scripts
-│   ├── test_finnhub.py       # Finnhub API test
-│   ├── test_duke_gateway.py  # Duke Gateway test
-│   └── test_any_company.py   # Company analysis test
+├── data/                     # Data files
+│   └── Sentences_75Agree.txt # Financial PhraseBank dataset
 │
 ├── models/                   # Trained models
-│   └── distillbert-fine-tuning/  # Sentiment classifier
+│                                  # Sentiment classifier model files
 │       ├── model.safetensors
 │       ├── config.json
 │       ├── tokenizer files
@@ -155,12 +152,8 @@ CS372/
 │   └── prompts_no_rag.md     # No-RAG mode prompts
 │
 ├── docs/                     # Documentation
-│   └── figures/              # Training visualizations
-│
-├── tests/                    # Unit tests
-│   ├── test_finnhub_client.py
-│   ├── test_rag_system.py
-│   └── test_sec_edgar_client.py
+│   ├── QUICK_CLI_REFERENCE.md
+│   └── cleanup_cache.sh
 │
 └── videos/                   # Demo and walkthrough videos
 ```
@@ -179,8 +172,7 @@ CS372/
 - **Integration**: Analyzes retrieved SEC filing chunks for sentiment distribution
 
 ### Report Generation
-- **Primary**: Duke AI Gateway (GPT-4.1) for high-quality analysis
-- **Fallback**: TinyLlama-1.1B-Chat for local inference
+- **Model**: Duke AI Gateway (GPT-4.1) for high-quality analysis
 - **Output**: Structured educational briefs with transparent citations
 
 ### Section Validation & Processing

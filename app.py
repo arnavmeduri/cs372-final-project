@@ -220,7 +220,7 @@ def main():
             )
 
             if compare_mode:
-                st.info("📊 Comparison mode: Will generate both WITH RAG and WITHOUT RAG reports side-by-side")
+                st.info("Comparison mode: Will generate both WITH RAG and WITHOUT RAG reports side-by-side")
 
         st.markdown("---")
 
@@ -392,8 +392,7 @@ def main():
             col_rag, col_no_rag = st.columns(2)
 
             with col_rag:
-                st.markdown("### 📊 WITH RAG")
-                st.markdown("*Uses actual SEC filings and real-time Finnhub data*")
+                st.markdown("### WITH RAG")
                 st.markdown("")
 
                 # Display RAG analysis
@@ -420,8 +419,7 @@ def main():
                             st.markdown(f"- {main_ref}")
 
             with col_no_rag:
-                st.markdown("### 🤖 WITHOUT RAG")
-                st.markdown("*Uses only LLM general knowledge (may be outdated or inaccurate)*")
+                st.markdown("### WITHOUT RAG")
                 st.markdown("")
 
                 # Display No-RAG analysis

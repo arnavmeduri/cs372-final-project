@@ -71,34 +71,11 @@ Features:
 
 ### Command Line Interface
 
-With Duke AI Gateway (recommended):
 ```bash
 python -m src.finbrief AAPL --duke-gateway
 ```
 
-Without Duke Gateway (uses local TinyLlama):
-```bash
-python -m src.finbrief AAPL
-```
-
 Replace `AAPL` with any stock ticker.
-
-## Testing
-
-Test Duke AI Gateway connection:
-```bash
-python data/test_duke_gateway.py
-```
-
-Test Finnhub API:
-```bash
-python data/test_finnhub.py
-```
-
-Test full analysis on any company:
-```bash
-python data/test_any_company.py MSFT
-```
 
 ## Recommended Things to Try Out
 
@@ -114,8 +91,10 @@ python data/test_any_company.py MSFT
 - No-RAG mode generates more generic responses
 
 **Explore sentiment analysis:**
-- Reports include sentiment distribution (Positive/Neutral/Negative)
-- Based on fine-tuned DistilBERT model (93.05% validation accuracy)
+- Reports include sentiment distribution of SEC filing chunks (Positive/Neutral/Negative)
+- Based on DistilBERT model fine-tuned on Financial PhraseBank dataset
+- Trained on Google Colab with GPU acceleration (93.05% validation accuracy)
+- Analyzes the tone and outlook expressed in company's official filings
 - See `notebooks/sentiment_analysis_training.ipynb` for training details
 
 **View SEC filing citations:**
@@ -123,23 +102,6 @@ python data/test_any_company.py MSFT
 - Links to original SEC filings (10-K, 10-Q)
 
 ## For Graders
-
-### Testing Without Duke AI Gateway
-
-If you don't have Duke AI Gateway access, you can still test core functionality:
-
-Set minimal environment variables:
-```bash
-SEC_EDGAR_NAME=Grader
-SEC_EDGAR_EMAIL=grader@example.com
-```
-
-Run with local model:
-```bash
-python -m src.finbrief AAPL
-```
-
-**Note:** Output quality will be lower without Duke AI Gateway, but RAG pipeline, sentiment analysis, and SEC filing retrieval will still work.
 
 ### Testing Individual Components
 
@@ -194,7 +156,7 @@ python -c "import torch; import transformers; import sentence_transformers; impo
 
 Models are automatically downloaded on first use:
 - **all-MiniLM-L6-v2** - Sentence embeddings (22M params)
-- **DistilBERT** - Sentiment classifier (67M params, fine-tuned weights in `models/distillbert-fine-tuning/`)
+- **DistilBERT** - Sentiment classifier (67M params, fine-tuned weights in `models/`)
 
 Models cached in `~/.cache/huggingface/`
 

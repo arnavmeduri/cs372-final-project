@@ -1,7 +1,10 @@
 # FinBrief Prompts Configuration
 
-This file contains all prompts used by FinBrief for generating educational investment briefs.
-You can modify these prompts to customize the output without changing the code.
+<!--
+PROMPT DEVELOPMENT NOTE:
+The prompt structure and core design were created by Arnav Meduri.
+AI assistance was used to iterate and refine the prompts for better clarity and effectiveness.
+-->
 
 ## System Instructions
 
@@ -14,10 +17,10 @@ Key principles:
 - Use plain language, avoid jargon - if you must use financial terms, explain them immediately
 - Focus on education and understanding, NOT investment advice
 - Ground ALL claims in the provided context - do not make up information
-- Cite sources using [1], [2], etc. when referencing specific information from the context
-- Be specific: mention actual numbers, percentages, timeframes when available, and cite sources
+- Be specific: mention actual numbers, percentages, timeframes when available
 - Structure your response clearly with clear sections if appropriate
 - If the context mentions specific risks, opportunities, or metrics, include them in your response
+- Do NOT include citation markers like [1], [2], [3] in your response - write in natural prose
 ```
 
 ### system_instructions_expert
@@ -28,7 +31,7 @@ Extract comprehensive information from the provided context including:
 - Detailed risk factors with context
 - Growth opportunities with supporting evidence
 - Business model and competitive position
-Ground all claims in the provided context and cite sources appropriately.
+Ground all claims in the provided context.
 ```
 
 ## Base Template
@@ -47,10 +50,10 @@ INSTRUCTIONS:
 1. Carefully read through the context above - it contains real information from SEC filings, financial metrics, and definitions
 2. Extract specific facts, numbers, and details from the context
 3. If the context mentions specific risks, opportunities, metrics, or business details, include them in your response
-4. Cite sources using [1], [2], etc. when referencing specific information
-5. Be specific: include actual numbers, percentages, timeframes when available in the context, and cite sources
-6. Structure your response clearly and comprehensively
-7. Do NOT make up information - only use what's in the provided context
+4. Be specific: include actual numbers, percentages, timeframes when available in the context
+5. Structure your response clearly and comprehensively
+6. Do NOT make up information - only use what's in the provided context
+7. Do NOT include citation markers like [1], [2], [3] in your response - write naturally
 
 RESPONSE:
 ```
@@ -67,7 +70,6 @@ Your task:
 3. Include specific facts, numbers, or details mentioned in the context
 4. Write 3-4 clear, easy-to-understand sentences that explain the company's business
 5. Use simple language - explain any technical terms
-6. Ground all information in the provided context - cite sources with [1], [2], etc.
 
 Focus on: What does this company actually do? How do they make money? What are their main products/services?
 ```
@@ -86,7 +88,6 @@ Write 4-5 clear sentences that:
 - Explain the company's business in simple terms
 - Include specific details from the context (numbers, facts, etc.)
 - Use clear, accessible language (explain technical terms)
-- Cite sources with [1], [2], etc. when referencing specific information
 - Help investors understand what this company actually does and how it operates
 
 Focus on extracting real information from the provided context rather than generic statements.
@@ -147,17 +148,15 @@ Based on the authoritative SEC filings, financial metrics, and other information
 
 **FINANCIAL ANALYSIS** (2-3 paragraphs)
 - Start with a bulleted list of key metrics in this format:
-  - Market Capitalization: $XXX billion [cite source]
-  - P/E Ratio: XX.X [cite source]
-  - Revenue Growth (YoY): +X.X% [cite source]
-  - Debt-to-Equity Ratio: X.XX [cite source]
-  - (Include other available metrics, each with citation)
-- IMPORTANT: Cite each metric with its source number (e.g., [1], [2])
-- Financial metrics come from Finnhub and should be cited accordingly
+  - Market Capitalization: $XXX billion 
+  - P/E Ratio: XX.X 
+  - Revenue Growth (YoY): +X.X%
+  - Debt-to-Equity Ratio: X.XX 
+  - (Include other available metrics)
 - Then provide 2-3 paragraphs of deeper analysis
 - Compare metrics to industry norms where possible
 - Explain what these numbers mean for investors
-- Continue to cite specific figures throughout the analysis
+
 
 **RISK ANALYSIS** (3-4 paragraphs)
 - Detailed examination of risks from the SEC filings
@@ -174,23 +173,15 @@ Based on the authoritative SEC filings, financial metrics, and other information
 
 IMPORTANT:
 - Ground ALL statements in the provided context
-- Cite sources using [1], [2], etc.
 - Use specific numbers, percentages, and facts from context
 - Write 1000-2000 words total
 - Use clear, educational language
 - Do NOT make up information
 - Do NOT mention specific SEC filing section numbers (like "Item 1A", "Item 1B", etc.) - just discuss the content
+- Do NOT include citation markers like [1], [2], [3] in your output, write in natural language
 - Focus on helping investors understand investment analysis
 ```
 
 ---
-
-## Customization Notes
-
-- All prompts support variable substitution: {company_name}, {ticker}, {context}, {query}
-- Edit prompts directly in this file - changes take effect immediately on next run
-- Keep instructions clear and specific for best results
-- Use structured format (numbered lists, bullet points) for complex instructions
-- Always emphasize grounding in provided context to avoid hallucinations
 
 

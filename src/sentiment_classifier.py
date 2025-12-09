@@ -13,7 +13,7 @@ class SentimentClassifier:
     Trained on Financial PhraseBank dataset.
     """
     
-    def __init__(self, model_path: str = "models/distillbert-fine-tuning"):
+    def __init__(self, model_path: str = "models"):
         """Initialize sentiment classifier."""
         self.model_path = model_path
         self.tokenizer = None
