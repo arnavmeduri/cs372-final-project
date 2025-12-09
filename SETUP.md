@@ -57,7 +57,9 @@ FINNHUB_API_KEY=your_finnhub_api_key_here
 
 ### Streamlit Web UI (Recommended)
 
-Run:
+**Note:** This application must be run locally and cannot be deployed to Streamlit Community Cloud due to file size limitations. The fine-tuned DistilBERT model weights (`model.safetensors`, ~250MB) are required for sentiment analysis inference and exceed Streamlit's deployment file size limits.
+
+Run locally:
 ```bash
 streamlit run app.py
 ```
@@ -68,6 +70,8 @@ Features:
 - Side-by-side RAG vs. No-RAG comparison
 - Real-time company analysis
 - Visual sentiment analysis results
+
+For a demonstration of the web interface, see the demo video in the README.md.
 
 ### Command Line Interface
 
@@ -154,11 +158,15 @@ python -c "import torch; import transformers; import sentence_transformers; impo
 
 ## Model Files
 
-Models are automatically downloaded on first use:
-- **all-MiniLM-L6-v2** - Sentence embeddings (22M params)
-- **DistilBERT** - Sentiment classifier (67M params, fine-tuned weights in `models/`)
+**DistilBERT Sentiment Classifier:**
+- Fine-tuned model weights are stored in `models/model.safetensors`
+- **Note:** This file is too large to push to GitHub (~250MB)
+- **Download link:** [https://drive.google.com/file/d/13On6wG39REoUNH3rR5wAh7gvtIf-DhRi/view?usp=sharing](https://drive.google.com/file/d/13On6wG39REoUNH3rR5wAh7gvtIf-DhRi/view?usp=sharing)
+- Place the downloaded file in the `models/` directory
 
-Models cached in `~/.cache/huggingface/`
+**Other models automatically downloaded on first use:**
+- **all-MiniLM-L6-v2** - Sentence embeddings (22M params)
+- Models cached in `~/.cache/huggingface/`
 
 ## Data Files
 

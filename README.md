@@ -14,6 +14,8 @@ To run my project, install dependencies from `requirements.txt` and set up API k
 streamlit run app.py
 ```
 
+**Note:** This application can only be run locally due to Streamlit Community Cloud's file size limitations. The fine-tuned DistilBERT model weights (`model.safetensors`, ~250MB) are required for sentiment analysis inference and exceed Streamlit's deployment limits. For a demonstration of the web interface, please see the demo video.
+
 **Command Line Interface:**
 ```bash
 python -m src.finbrief AAPL --duke-gateway
@@ -136,13 +138,15 @@ CS372/
 │   └── Sentences_75Agree.txt # Financial PhraseBank dataset
 │
 ├── models/                   # Trained models
-│                                  # Sentiment classifier model files
-│       ├── model.safetensors
+│                                  # DistilBERT sentiment classifier
+│       ├── model.safetensors     # Fine-tuned weights (download from Google Drive*)
 │       ├── config.json
 │       ├── tokenizer files
 │       └── results/          # Training visualizations
 │           ├── confusion_matrix.png
 │           └── roc_curves.png
+│
+│   *model.safetensors too large for GitHub - download: https://drive.google.com/file/d/13On6wG39REoUNH3rR5wAh7gvtIf-DhRi/view?usp=sharing
 │
 ├── notebooks/                # Jupyter notebooks
 │   └── sentiment_analysis_training.ipynb
