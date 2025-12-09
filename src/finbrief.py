@@ -34,12 +34,13 @@ from .prompt_loader import get_prompt, PromptLoader
 from .educational_brief import (
     EducationalBrief, EducationalBriefFormatter,
     RiskItem, OpportunityItem, TermExplanation, FinancialMetric, Citation,
-    DifficultyLevel, RiskSeverity
+    DifficultyLevel, RiskSeverity, SentimentAnalysis
 )
 from .rich_formatter import RichAnalysisFormatter
 from .confidence_head import HeuristicConfidenceEstimator
 from .section_validator import SectionValidator
 from .balance_sheet_analyzer import BalanceSheetAnalyzer
+from .sentiment_classifier import SentimentClassifier
 
 load_dotenv(override=True)  # Override system env vars with .env file
 
@@ -144,12 +145,22 @@ class FinBriefApp:
         self.section_validator = SectionValidator(verbose=self.verbose)
         self.balance_sheet_analyzer = BalanceSheetAnalyzer(verbose=self.verbose)
 
+        # Sentiment classifier (lazy loaded)
+        self.sentiment_classifier = None
+
         self._log("FinBrief initialized successfully!")
     
     def _log(self, message: str):
         """Print log message if verbose."""
         if self.verbose:
             print(f"[FinBrief] {message}")
+    
+    def _load_sentiment_classifier(self):
+        """Lazy load the sentiment classifier."""
+        if self.sentiment_classifier is None:
+            self._log("Loading sentiment classifier...")
+            self.sentiment_classifier = SentimentClassifier()
+            self._log("Sentiment classifier loaded")
     
     def _get_company_name(self, ticker: str) -> str:
         """
@@ -1382,6 +1393,52 @@ Financial Context:
             # Rebuild index
             self.rag.build_index()
             
+            # 3A. Sentiment Analysis: Classify RAG chunks
+            sentiment_analysis_result = None
+            if self.rag.documents:
+                self._load_sentiment_classifier()
+                self._log(f"Analyzing sentiment of {len(self.rag.documents)} chunks...")
+                
+                # Extract text from all chunks
+                chunk_texts = [doc.text for doc in self.rag.documents]
+                
+                # Classify in batch
+                sentiment_predictions = self.sentiment_classifier.classify_batch(chunk_texts)
+                
+                # Calculate aggregate statistics
+                pos_count = sum(1 for p in sentiment_predictions if p['label'] == 'positive')
+                neu_count = sum(1 for p in sentiment_predictions if p['label'] == 'neutral')
+                neg_count = sum(1 for p in sentiment_predictions if p['label'] == 'negative')
+                total_count = len(sentiment_predictions)
+                
+                if total_count > 0:
+                    positive_pct = (pos_count / total_count) * 100
+                    neutral_pct = (neu_count / total_count) * 100
+                    negative_pct = (neg_count / total_count) * 100
+                    
+                    # Determine overall tone
+                    if positive_pct > 50 and positive_pct > neutral_pct and positive_pct > negative_pct:
+                        overall_tone = "Positive"
+                    elif negative_pct > 50 and negative_pct > neutral_pct and negative_pct > positive_pct:
+                        overall_tone = "Negative"
+                    elif neutral_pct > 50 and neutral_pct > positive_pct and neutral_pct > negative_pct:
+                        overall_tone = "Neutral"
+                    else:
+                        overall_tone = "Mixed"
+                    
+                    sentiment_analysis_result = SentimentAnalysis(
+                        positive_pct=positive_pct,
+                        neutral_pct=neutral_pct,
+                        negative_pct=negative_pct,
+                        total_chunks=total_count,
+                        overall_tone=overall_tone
+                    )
+                    
+                    self._log(f"Sentiment analysis complete: {overall_tone} "
+                             f"(Pos: {positive_pct:.1f}%, Neu: {neutral_pct:.1f}%, Neg: {negative_pct:.1f}%)")
+            else:
+                self._log("No RAG chunks available for sentiment analysis")
+            
             # 4. Retrieve comprehensive context (15 chunks for rich mode)
             self._log("Retrieving comprehensive context (15 chunks)...")
             
@@ -1533,7 +1590,8 @@ Financial Context:
             difficulty_reason="Comprehensive analysis suitable for serious learners",
             educational_summary=f"Comprehensive investment research report on {company_name} using SEC filings and real-time financial data.",
             sources=sources,
-            confidence_score=0.95  # High confidence with comprehensive analysis
+            confidence_score=0.95,  # High confidence with comprehensive analysis
+            sentiment_analysis=sentiment_analysis_result  # Add sentiment analysis
         )
         
         self._log("Rich analysis generated successfully!")

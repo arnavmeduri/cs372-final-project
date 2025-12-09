@@ -38,6 +38,19 @@ class RichAnalysisFormatter:
                 lines.append(f"  • {metric.name}: {metric.value}")
             lines.append("")
         
+        # Sentiment analysis section
+        if brief.sentiment_analysis:
+            lines.append("")
+            lines.append("=" * 80)
+            lines.append("FILING SENTIMENT ANALYSIS")
+            lines.append("=" * 80)
+            lines.append(f"Based on analysis of {brief.sentiment_analysis.total_chunks} retrieved chunks:")
+            lines.append(f"  • Positive: {brief.sentiment_analysis.positive_pct:.1f}%")
+            lines.append(f"  • Neutral: {brief.sentiment_analysis.neutral_pct:.1f}%")
+            lines.append(f"  • Negative: {brief.sentiment_analysis.negative_pct:.1f}%")
+            lines.append(f"  • Overall Tone: {brief.sentiment_analysis.overall_tone}")
+            lines.append("")
+        
         # Sources section at the end
         if brief.summary_citations:
             lines.append("=" * 80)
@@ -80,6 +93,19 @@ class RichAnalysisFormatter:
             lines.append("")
             for metric in brief.metrics:
                 lines.append(f"- **{metric.name}**: {metric.value}")
+            lines.append("")
+        
+        # Sentiment analysis section
+        if brief.sentiment_analysis:
+            lines.append("---")
+            lines.append("")
+            lines.append("## Filing Sentiment Analysis")
+            lines.append("")
+            lines.append(f"Based on analysis of {brief.sentiment_analysis.total_chunks} retrieved chunks:")
+            lines.append(f"- Positive: {brief.sentiment_analysis.positive_pct:.1f}%")
+            lines.append(f"- Neutral: {brief.sentiment_analysis.neutral_pct:.1f}%")
+            lines.append(f"- Negative: {brief.sentiment_analysis.negative_pct:.1f}%")
+            lines.append(f"- Overall Tone: {brief.sentiment_analysis.overall_tone}")
             lines.append("")
         
         # Sources section at the end

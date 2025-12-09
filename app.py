@@ -143,6 +143,48 @@ def format_metric(value, suffix="", prefix="", decimals=2):
     return str(value)
 
 
+def clean_markdown_text(text: str) -> str:
+    """
+    Clean LLM-generated markdown to prevent rendering issues in Streamlit.
+    
+    Removes:
+    - Code blocks (```)
+    - Inline code backticks (`)
+    - LaTeX math delimiters ($, $$)
+    - Streamlit color syntax (:color[...])
+    """
+    import re
+    
+    cleaned = text.strip()
+    
+    # Remove opening code blocks (with or without language specifier)
+    if cleaned.startswith("```"):
+        first_newline = cleaned.find('\n')
+        if first_newline != -1:
+            cleaned = cleaned[first_newline+1:]
+    
+    # Remove closing code blocks
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    
+    # Remove mid-text code blocks
+    cleaned = re.sub(r'```\w*\n', '', cleaned)  # Opening blocks
+    cleaned = re.sub(r'\n```', '', cleaned)     # Closing blocks
+    
+    # Remove inline code backticks (causes green text in Streamlit)
+    # Only remove single backticks, not triple backticks
+    cleaned = re.sub(r'(?<!`)`([^`\n]+)`(?!`)', r'\1', cleaned)
+    
+    # Remove LaTeX-style math delimiters (can cause character-by-character rendering)
+    cleaned = re.sub(r'\$\$([^$]+)\$\$', r'\1', cleaned)  # Display math
+    cleaned = re.sub(r'\$([^$\n]+)\$', r'\1', cleaned)     # Inline math
+    
+    # Remove Streamlit color syntax
+    cleaned = re.sub(r':\w+\[([^\]]+)\]', r'\1', cleaned)
+    
+    return cleaned.strip()
+
+
 def main():
     # ─────────────────────────────────────────────────────────────────────────
     # SIDEBAR
@@ -330,80 +372,17 @@ def main():
 
                 st.markdown("")
 
-                # Investment Score Section (shared - based on same metrics)
-                from src.investment_score import calculate_investment_score
-                from src.balance_sheet_analyzer import BalanceSheetAnalyzer
-
-                # Try to get balance sheet ratios for accurate Graham score
-                balance_sheet_ratios = None
-                try:
-                    # Get balance sheet from filing if available
-                    from edgar import Company, set_identity
-                    import os
-                    set_identity(f"{os.getenv('SEC_EDGAR_NAME', 'Student')} {os.getenv('SEC_EDGAR_EMAIL', 'test@duke.edu')}")
-                    company = Company(brief_rag.ticker)
-                    filing = company.get_filings(form="10-K").latest()
-                    doc = filing.obj()
-
-                    if hasattr(doc, 'balance_sheet') and doc.balance_sheet:
-                        analyzer = BalanceSheetAnalyzer(verbose=False)
-                        bs_analysis = analyzer.analyze(doc.balance_sheet, brief_rag.company_name)
-                        if bs_analysis['has_data']:
-                            balance_sheet_ratios = bs_analysis['ratios']
-                except Exception as e:
-                    # Balance sheet not available - Graham score will use fallback
-                    pass
-
-                # Calculate Graham score with balance sheet data if available
-                score_data = calculate_investment_score(metrics, balance_sheet_ratios)
-
-                st.markdown("### Investment Score")
-
-                col_score1, col_score2 = st.columns(2)
-                with col_score1:
-                    st.metric("Score", f"{score_data['score']}/100")
-                with col_score2:
-                    rec = score_data['recommendation']
-                    if rec == "BUY":
-                        st.markdown(f"**Signal:** :green[{rec}]")
-                    elif rec == "HOLD":
-                        st.markdown(f"**Signal:** :orange[{rec}]")
-                    else:
-                        st.markdown(f"**Signal:** :red[{rec}]")
-
-                st.markdown(f"*{score_data.get('methodology', 'Graham Defensive Investor Score')}*", unsafe_allow_html=True)
-                if score_data.get('criteria_met') and score_data.get('total_criteria'):
-                    st.markdown(f"<p style='font-size:0.75rem; color:#6c757d;'>Meets {score_data['criteria_met']} of {score_data['total_criteria']} measurable Graham criteria</p>", unsafe_allow_html=True)
-
-                # Phase 4A: Display Individual Signals
-                if score_data.get('signals'):
-                    with st.expander("📊 View Detailed Criteria Breakdown"):
-                        st.markdown("#### Graham's Defensive Investor Criteria")
-                        st.markdown("")
-
-                        for signal_type, message, criterion in score_data['signals']:
-                            if signal_type == "positive":
-                                st.markdown(f"✅ **{criterion}:** {message}")
-                            elif signal_type == "negative":
-                                st.markdown(f"❌ **{criterion}:** {message}")
-                            elif signal_type == "neutral":
-                                st.markdown(f"⚠️ **{criterion}:** {message}")
-                            else:  # info, warning
-                                st.markdown(f"ℹ️ **{criterion}:** {message}")
-
-                        st.markdown("")
-                        st.markdown(f"**Result:** Meets {score_data['criteria_met']} of {score_data['total_criteria']} criteria")
-
-                # Phase 4A: Display Data Limitations
-                if score_data.get('limitations'):
-                    with st.expander("⚠️ Data Limitations & Proxies Used"):
-                        st.markdown("*The following limitations apply to this Graham score calculation:*")
-                        st.markdown("")
-                        for limitation in score_data['limitations']:
-                            st.markdown(limitation)
-                        st.markdown("")
-                        st.markdown("*Despite these limitations, the score provides educational value by introducing Graham's framework and using the best available data.*")
-
+            # Sentiment Analysis Section (only for RAG report)
+            if brief_rag.sentiment_analysis:
+                st.markdown("## Filing Sentiment")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Positive", f"{brief_rag.sentiment_analysis.positive_pct:.1f}%")
+                with col2:
+                    st.metric("Neutral", f"{brief_rag.sentiment_analysis.neutral_pct:.1f}%")
+                with col3:
+                    st.metric("Negative", f"{brief_rag.sentiment_analysis.negative_pct:.1f}%")
+                st.markdown(f"*Overall Tone: {brief_rag.sentiment_analysis.overall_tone}*")
                 st.markdown("")
 
             st.markdown("---")
@@ -419,18 +398,8 @@ def main():
 
                 # Display RAG analysis
                 if brief_rag.company_summary:
-                    import re
-                    analysis_text = brief_rag.company_summary.strip()
-                    if analysis_text.startswith("```"):
-                        first_newline = analysis_text.find('\n')
-                        if first_newline != -1:
-                            analysis_text = analysis_text[first_newline+1:]
-                    if analysis_text.endswith("```"):
-                        analysis_text = analysis_text[:-3]
-                    # Remove mid-text code blocks
-                    analysis_text = re.sub(r'```\w*\n', '', analysis_text)
-                    analysis_text = re.sub(r'\n```', '', analysis_text)
-                    st.markdown(analysis_text.strip(), unsafe_allow_html=False)
+                    analysis_text = clean_markdown_text(brief_rag.company_summary)
+                    st.markdown(analysis_text, unsafe_allow_html=False)
 
                 st.markdown("")
 
@@ -457,18 +426,8 @@ def main():
 
                 # Display No-RAG analysis
                 if brief_no_rag.company_summary:
-                    import re
-                    analysis_text = brief_no_rag.company_summary.strip()
-                    if analysis_text.startswith("```"):
-                        first_newline = analysis_text.find('\n')
-                        if first_newline != -1:
-                            analysis_text = analysis_text[first_newline+1:]
-                    if analysis_text.endswith("```"):
-                        analysis_text = analysis_text[:-3]
-                    # Remove mid-text code blocks
-                    analysis_text = re.sub(r'```\w*\n', '', analysis_text)
-                    analysis_text = re.sub(r'\n```', '', analysis_text)
-                    st.markdown(analysis_text.strip(), unsafe_allow_html=False)
+                    analysis_text = clean_markdown_text(brief_no_rag.company_summary)
+                    st.markdown(analysis_text, unsafe_allow_html=False)
 
                 st.markdown("")
                 st.warning("⚠️ No source citations - based only on LLM general knowledge")
@@ -506,111 +465,25 @@ def main():
                 st.metric("Dividend Yield", format_metric(metrics.dividend_yield, suffix="%"))
             
             st.markdown("")
-            
-            # Investment Score Section - Phase 4A Enhanced
-            from src.investment_score import calculate_investment_score
-            from src.balance_sheet_analyzer import BalanceSheetAnalyzer
 
-            # Try to get balance sheet ratios for accurate Graham score
-            balance_sheet_ratios = None
-            try:
-                # Get balance sheet from filing if available
-                from edgar import Company, set_identity
-                import os
-                set_identity(f"{os.getenv('SEC_EDGAR_NAME', 'Student')} {os.getenv('SEC_EDGAR_EMAIL', 'test@duke.edu')}")
-                company = Company(ticker)
-                filing = company.get_filings(form="10-K").latest()
-                doc = filing.obj()
-
-                if hasattr(doc, 'balance_sheet') and doc.balance_sheet:
-                    analyzer = BalanceSheetAnalyzer(verbose=False)
-                    bs_analysis = analyzer.analyze(doc.balance_sheet, brief.company_name)
-                    if bs_analysis['has_data']:
-                        balance_sheet_ratios = bs_analysis['ratios']
-            except Exception as e:
-                # Balance sheet not available - Graham score will use fallback
-                pass
-
-            # Calculate Graham score with balance sheet data if available
-            score_data = calculate_investment_score(metrics, balance_sheet_ratios)
-
-            st.markdown("### Investment Score")
-            
-            col_score1, col_score2 = st.columns(2)
-            with col_score1:
-                st.metric("Score", f"{score_data['score']}/100")
-            with col_score2:
-                rec = score_data['recommendation']
-                if rec == "BUY":
-                    st.markdown(f"**Signal:** :green[{rec}]")
-                elif rec == "HOLD":
-                    st.markdown(f"**Signal:** :orange[{rec}]")
-                else:
-                    st.markdown(f"**Signal:** :red[{rec}]")
-            
-            st.markdown(f"*{score_data.get('methodology', 'Graham Defensive Investor Score')}*", unsafe_allow_html=True)
-            if score_data.get('criteria_met') and score_data.get('total_criteria'):
-                st.markdown(f"<p style='font-size:0.75rem; color:#6c757d;'>Meets {score_data['criteria_met']} of {score_data['total_criteria']} measurable Graham criteria</p>", unsafe_allow_html=True)
-
-            # Phase 4A: Display Individual Signals
-            if score_data.get('signals'):
-                with st.expander("📊 View Detailed Criteria Breakdown"):
-                    st.markdown("#### Graham's Defensive Investor Criteria")
-                    st.markdown("")
-
-                    for signal_type, message, criterion in score_data['signals']:
-                        if signal_type == "positive":
-                            st.markdown(f"✅ **{criterion}:** {message}")
-                        elif signal_type == "negative":
-                            st.markdown(f"❌ **{criterion}:** {message}")
-                        elif signal_type == "neutral":
-                            st.markdown(f"⚠️ **{criterion}:** {message}")
-                        else:  # info, warning
-                            st.markdown(f"ℹ️ **{criterion}:** {message}")
-
-                    st.markdown("")
-                    st.markdown(f"**Result:** Meets {score_data['criteria_met']} of {score_data['total_criteria']} criteria")
-
-            # Phase 4A: Display Data Limitations
-            if score_data.get('limitations'):
-                with st.expander("⚠️ Data Limitations & Proxies Used"):
-                    st.markdown("*The following limitations apply to this Graham score calculation:*")
-                    st.markdown("")
-                    for limitation in score_data['limitations']:
-                        st.markdown(limitation)
-                    st.markdown("")
-                    st.markdown("*Despite these limitations, the score provides educational value by introducing Graham's framework and using the best available data.*")
-
+        # Sentiment Analysis Section
+        if brief.sentiment_analysis:
+            st.markdown("## Filing Sentiment")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Positive", f"{brief.sentiment_analysis.positive_pct:.1f}%")
+            with col2:
+                st.metric("Neutral", f"{brief.sentiment_analysis.neutral_pct:.1f}%")
+            with col3:
+                st.metric("Negative", f"{brief.sentiment_analysis.negative_pct:.1f}%")
+            st.markdown(f"*Overall Tone: {brief.sentiment_analysis.overall_tone}*")
             st.markdown("")
         
         # Main Analysis Content (company_summary contains the full rich analysis)
         if brief.company_summary:
             st.markdown("## Analysis")
             # Clean up any problematic markdown formatting
-            analysis_text = brief.company_summary
-
-            # Remove code block markers that cause green text
-            analysis_text = analysis_text.strip()
-
-            # Remove opening code blocks (with or without language specifier)
-            if analysis_text.startswith("```"):
-                first_newline = analysis_text.find('\n')
-                if first_newline != -1:
-                    analysis_text = analysis_text[first_newline+1:]
-
-            # Remove closing code blocks
-            if analysis_text.endswith("```"):
-                analysis_text = analysis_text[:-3]
-
-            # Remove any remaining stray code block markers mid-text
-            import re
-            analysis_text = re.sub(r'```\w*\n', '', analysis_text)  # Remove opening blocks
-            analysis_text = re.sub(r'\n```', '', analysis_text)     # Remove closing blocks
-
-            analysis_text = analysis_text.strip()
-
-            # Note: LLM may use markdown formatting (italics, bold, inline code).
-            # This is intentional for emphasis. If excessive, adjust the rich_analysis_prompt.
+            analysis_text = clean_markdown_text(brief.company_summary)
             st.markdown(analysis_text, unsafe_allow_html=False)
         
         st.markdown("---")

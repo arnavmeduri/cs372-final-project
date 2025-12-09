@@ -76,6 +76,16 @@ class Citation:
 
 
 @dataclass
+class SentimentAnalysis:
+    """Sentiment analysis of SEC filing chunks."""
+    positive_pct: float  # Percentage of positive chunks
+    neutral_pct: float   # Percentage of neutral chunks
+    negative_pct: float  # Percentage of negative chunks
+    total_chunks: int    # Number of chunks analyzed
+    overall_tone: str    # "Positive", "Neutral", "Negative", or "Mixed"
+
+
+@dataclass
 class EducationalBrief:
     """
     Complete FinBrief educational investment brief.
@@ -119,6 +129,9 @@ class EducationalBrief:
     # 10. Model Confidence (optional)
     confidence_score: Optional[float] = None
     
+    # 11. Sentiment Analysis (optional)
+    sentiment_analysis: Optional[SentimentAnalysis] = None
+    
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         return {
@@ -142,7 +155,14 @@ class EducationalBrief:
             'difficulty_reason': self.difficulty_reason,
             'educational_summary': self.educational_summary,
             'sources': [{'source_type': s.source_type, 'details': s.details} for s in self.sources],
-            'confidence_score': self.confidence_score
+            'confidence_score': self.confidence_score,
+            'sentiment_analysis': {
+                'positive_pct': self.sentiment_analysis.positive_pct,
+                'neutral_pct': self.sentiment_analysis.neutral_pct,
+                'negative_pct': self.sentiment_analysis.negative_pct,
+                'total_chunks': self.sentiment_analysis.total_chunks,
+                'overall_tone': self.sentiment_analysis.overall_tone
+            } if self.sentiment_analysis else None
         }
     
     def to_json(self) -> str:
