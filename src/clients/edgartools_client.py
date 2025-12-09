@@ -6,6 +6,11 @@ for better section extraction quality (no TOC confusion, no XBRL pollution).
 
 This wrapper maintains backward compatibility with existing code while
 delivering 10x better section extraction quality.
+
+ATTRIBUTION: The majority of code in this file was generated with AI assistance.
+I took advantage of AI to handle the wrapper implementation, XBRL cleanup, and backward
+compatibility logic with the existing codebase.
+The decision to use edgartools and the interface design were mine.
 """
 
 from typing import List, Dict, Optional

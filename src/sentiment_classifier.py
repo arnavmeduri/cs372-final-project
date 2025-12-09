@@ -1,6 +1,6 @@
 """
-Sentiment Classifier for Financial Text
-Uses fine-tuned DistilBERT model to classify sentiment of SEC filing chunks.
+This file loads pre-trained model weights from fine-tuning DistilBERT model on the Financial PhraseBank dataset.
+Model fine-tuning was conducted on Google Colab with GPU (results documented in notebooks/DistillBertTraining.ipynb).
 """
 import os
 import torch
@@ -14,20 +14,17 @@ class SentimentClassifier:
     """
     
     def __init__(self, model_path: str = "models/distillbert-fine-tuning"):
-        """
-        Initialize sentiment classifier.
-        
-        Args:
-            model_path: Path to fine-tuned model directory
-        """
+        """Initialize sentiment classifier."""
         self.model_path = model_path
         self.tokenizer = None
         self.model = None
         self.device = self._get_device()
         
-        # Label mapping from training (0=negative, 1=neutral, 2=positive)
+
         self.id2label = {0: "negative", 1: "neutral", 2: "positive"}
-        self.label2id = {v: k for k, v in self.id2label.items()}
+        self.label2id = {}
+        for label_id, label_name in self.id2label.items():
+            self.label2id[label_name] = label_id
         
     def _get_device(self) -> str:
         """Determine best available device."""
@@ -39,9 +36,8 @@ class SentimentClassifier:
             return "cpu"
     
     def _load_model(self):
-        """Lazy load model and tokenizer."""
         if self.model is None:
-            print(f"[SENTIMENT] Loading model from {self.model_path}...")
+            print(f"loading sentiment model from {self.model_path}")
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 self.model_path,
@@ -49,18 +45,10 @@ class SentimentClassifier:
             )
             self.model.to(self.device)
             self.model.eval()
-            print(f"[SENTIMENT] Model loaded on {self.device}")
+            print(f"sentiment model loaded on {self.device}")
     
     def classify_text(self, text: str) -> Dict[str, any]:
-        """
-        Classify sentiment of a single text.
-        
-        Args:
-            text: Text to classify
-            
-        Returns:
-            Dict with 'label' and 'scores' for each sentiment
-        """
+        """Classify sentiment of a single text."""
         self._load_model()
         
         inputs = self.tokenizer(
@@ -74,7 +62,12 @@ class SentimentClassifier:
         with torch.no_grad():
             outputs = self.model(**inputs)
             logits = outputs.logits
-            probs = torch.softmax(logits, dim=-1)[0]
+            
+            # get probabilities
+            all_probs = torch.softmax(logits, dim=-1)
+            probs = all_probs[0]
+            
+            # predicted label
             pred_id = torch.argmax(logits, dim=-1).item()
         
         return {
@@ -87,21 +80,13 @@ class SentimentClassifier:
         }
     
     def classify_batch(self, texts: List[str]) -> List[Dict[str, any]]:
-        """
-        Classify sentiment of multiple texts efficiently.
-        
-        Args:
-            texts: List of texts to classify
-            
-        Returns:
-            List of dicts with 'label' and 'scores' for each text
-        """
+        """Classify sentiment of multiple texts efficiently."""
         self._load_model()
         
         if not texts:
             return []
         
-        # Tokenize batch
+        # tokenize batch
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",
@@ -131,7 +116,7 @@ class SentimentClassifier:
 
 
 if __name__ == "__main__":
-    # Example usage
+    # Testing it out
     classifier = SentimentClassifier()
     
     test_sentences = [
@@ -140,15 +125,17 @@ if __name__ == "__main__":
         "The quarterly earnings were released on schedule."
     ]
     
-    print("\n--- Single Classification ---")
+    print("\nSingle classification:")
     result = classifier.classify_text(test_sentences[0])
-    print(f"Text: {test_sentences[0]}")
-    print(f"Sentiment: {result['label']}")
-    print(f"Scores: {result['scores']}\n")
+    print(f"text: {test_sentences[0]}")
+    print(f"sentiment: {result['label']}")
+    print(f"scores: {result['scores']}\n")
     
-    print("\n--- Batch Classification ---")
+    print("\nBatch classification:")
     results = classifier.classify_batch(test_sentences)
-    for text, result in zip(test_sentences, results):
-        print(f"Text: {text}")
-        print(f"Sentiment: {result['label']}")
-        print(f"Scores: {result['scores']}\n")
+    for i in range(len(test_sentences)):
+        text = test_sentences[i]
+        result = results[i]
+        print(f"text: {text}")
+        print(f"sentiment: {result['label']}")
+        print(f"scores: {result['scores']}\n")

@@ -1,7 +1,7 @@
 """
 Handler for LLM models optimized for Apple Silicon (M1/M2) Macs.
 Primary model: GPT-2 Medium (355M) for educational financial briefs.
-Supports LoRA adapters and optional quantization.
+Supports optional quantization.
 
 Model Selection (per CS372 design):
 - GPT-2 Medium (default): 355M params, good balance of quality and speed
@@ -49,7 +49,7 @@ def check_bitsandbytes_available():
 class FinBriefModel:
     """
     Wrapper for LLM models used in FinBrief educational financial analysis.
-    Optimized for Apple Silicon with support for LoRA adapters.
+    Optimized for Apple Silicon.
     """
     
     # Default model per CS372 design: GPT-2 Medium (355M params)
@@ -69,7 +69,7 @@ class FinBriefModel:
     SMALL_MODELS = AVAILABLE_MODELS
     
     def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None, 
-                 use_quantization: bool = False, lora_path: Optional[str] = None):
+                 use_quantization: bool = False):
         """
         Initialize the model optimized for Apple Silicon.
         
@@ -77,7 +77,6 @@ class FinBriefModel:
             model_name: Model name or alias (defaults to gpt2-medium per design.md)
             device: Device to run on ('cuda', 'mps', 'cpu', or None for auto)
             use_quantization: Whether to use 4-bit quantization (for large models on limited RAM)
-            lora_path: Path to LoRA adapter weights (optional)
         """
         # Resolve model name from alias
         if model_name and model_name.lower() in self.AVAILABLE_MODELS:
@@ -91,14 +90,11 @@ class FinBriefModel:
         
         self.device = device or get_optimal_device()
         self.use_quantization = use_quantization and self.is_large_model
-        self.lora_path = lora_path
         
         print(f"Loading model: {self.model_name}")
         print(f"Using device: {self.device}")
         if self.use_quantization:
             print("Quantization: Enabled (4-bit) - optimized for 16GB RAM")
-        if self.lora_path:
-            print(f"LoRA adapter: {self.lora_path}")
         
         # Clear any existing memory
         clear_memory()
@@ -175,25 +171,8 @@ class FinBriefModel:
             )
             self.model = self.model.to(self.device)
         
-        # Load LoRA adapter if provided
-        if self.lora_path and os.path.exists(self.lora_path):
-            self._load_lora_adapter()
-        
         # Set to evaluation mode
         self.model.eval()
-    
-    def _load_lora_adapter(self):
-        """Load LoRA adapter weights if available."""
-        try:
-            from peft import PeftModel
-            print(f"Loading LoRA adapter from {self.lora_path}")
-            self.model = PeftModel.from_pretrained(self.model, self.lora_path)
-            print("LoRA adapter loaded successfully")
-        except ImportError:
-            print("Warning: peft not installed. Cannot load LoRA adapter.")
-            print("Install with: pip install peft")
-        except Exception as e:
-            print(f"Warning: Could not load LoRA adapter: {e}")
     
     def generate(self, prompt: str, max_new_tokens: int = 256, temperature: float = 0.7, top_p: float = 0.9) -> str:
         """

@@ -4,6 +4,11 @@ Provides simple, student-relevant metrics like P/E ratio, EPS, market cap, etc.
 
 API Documentation: https://finnhub.io/docs/api
 Free tier: 60 API calls/minute
+
+ATTRIBUTION: The majority of code in this file was generated with AI assistance.
+I took advantage of AI to handle the Finnhub API integration, rate limiting, and metric
+calculation/formatting logic for the free tier constraints.
+The choice of metrics and data structure design were mine.
 """
 import requests
 import os

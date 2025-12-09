@@ -13,7 +13,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.finbrief import FinBriefApp
-from src.rich_formatter import RichAnalysisFormatter
+from src.utils.rich_formatter import RichAnalysisFormatter
 
 # Page configuration
 st.set_page_config(

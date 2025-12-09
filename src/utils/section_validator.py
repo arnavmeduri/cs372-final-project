@@ -4,7 +4,9 @@ Section Validation and Fallback Strategies
 Validates quality of extracted SEC filing sections and provides fallback
 strategies when primary extraction fails.
 
-Phase 3A: Enhanced Section Processing
+
+ATTRIBUTION: The majority of code in this file was generated with AI assistance.
+I took advantage of AI to deal with various edge cases in validation heuristics.
 """
 
 import re
@@ -16,11 +18,11 @@ class SectionValidator:
     Validates extracted section quality and provides fallback extraction.
     """
 
-    # Minimum character thresholds for narrative sections
-    MIN_LENGTH_NARRATIVE = 500  # Business, MD&A, Risk Factors
-    MIN_LENGTH_SHORT = 200      # Other sections
 
-    # Minimum alphabetic ratio (not mostly tables/numbers)
+    MIN_LENGTH_NARRATIVE = 500  
+    MIN_LENGTH_SHORT = 200     
+
+
     MIN_ALPHA_RATIO = 0.5
 
     def __init__(self, verbose: bool = True):
@@ -52,15 +54,15 @@ class SectionValidator:
         if not section_content:
             reason = f"{section_name}: Empty content"
             if self.verbose:
-                print(f"⚠️  {reason}")
+                print(f"warning: {reason}")
             return False, reason
 
-        # Check minimum length
+
         min_length = self.MIN_LENGTH_NARRATIVE if is_narrative else self.MIN_LENGTH_SHORT
         if len(section_content) < min_length:
             reason = f"{section_name}: Only {len(section_content)} chars (expected >{min_length})"
             if self.verbose:
-                print(f"⚠️  {reason}")
+                print(f"warning: {reason}")
             return False, reason
 
         # Check alphabetic ratio (not mostly numbers/tables)
@@ -70,7 +72,7 @@ class SectionValidator:
         if alpha_ratio < self.MIN_ALPHA_RATIO:
             reason = f"{section_name}: Only {alpha_ratio:.0%} alphabetic (expected >{self.MIN_ALPHA_RATIO:.0%})"
             if self.verbose:
-                print(f"⚠️  {reason}")
+                print(f"warning: {reason}")
             return False, reason
 
         # Check for common extraction errors
@@ -86,12 +88,12 @@ class SectionValidator:
             if indicator in sample:
                 reason = f"{section_name}: Contains '{indicator}' in first 500 chars (likely extraction error)"
                 if self.verbose:
-                    print(f"⚠️  {reason}")
+                    print(f"warning: {reason}")
                 return False, reason
 
         # Passed all checks
         if self.verbose:
-            print(f"✅ {section_name}: Valid ({len(section_content):,} chars, {alpha_ratio:.0%} alphabetic)")
+            print(f"{section_name}: valid ({len(section_content):,} chars, {alpha_ratio:.0%} alphabetic)")
         return True, ""
 
     def extract_forward_looking_statements(self, content: str, max_length: int = 5000) -> str:
@@ -150,7 +152,7 @@ class SectionValidator:
         result = '\n\n'.join(extracted)
 
         if self.verbose and result:
-            print(f"✅ Extracted {len(result):,} chars of forward-looking content from fallback")
+            print(f"extracted {len(result):,} chars of forward-looking content from fallback")
 
         return result
 
@@ -208,7 +210,7 @@ class SectionValidator:
         result = ' '.join(extracted)
 
         if self.verbose and result:
-            print(f"✅ Extracted {len(result):,} chars of risk content from fallback")
+            print(f"extracted {len(result):,} chars of risk content from fallback")
 
         return result
 
@@ -269,7 +271,7 @@ class SectionValidator:
                 fallback_content = self.extract_forward_looking_statements(business_content)
                 if len(fallback_content) > 500:
                     if verbose:
-                        print(f"✅ [FALLBACK] Successfully extracted {len(fallback_content):,} chars from Business section")
+                        print(f"[fallback] successfully extracted {len(fallback_content):,} chars from business section")
                     return fallback_content, "fallback_business"
 
         elif section_name == 'risk_factors':
@@ -280,11 +282,11 @@ class SectionValidator:
                     fallback_content = self.extract_risk_keywords(full_text)
                     if len(fallback_content) > 500:
                         if verbose:
-                            print(f"✅ [FALLBACK] Successfully extracted {len(fallback_content):,} chars from full filing")
+                            print(f"[fallback] successfully extracted {len(fallback_content):,} chars from full filing")
                         return fallback_content, "fallback_full_filing"
             except Exception as e:
                 if verbose:
-                    print(f"⚠️  [FALLBACK] Failed to extract from full filing: {e}")
+                    print(f"warning [fallback] failed to extract from full filing: {e}")
 
         elif section_name == 'business':
             # Business fallback: Try to get company description from CIK lookup
@@ -293,8 +295,8 @@ class SectionValidator:
 
         # All fallbacks failed
         if verbose:
-            print(f"⚠️  [FALLBACK] All fallbacks failed for {section_name}")
-            print(f"⚠️  WARNING: {section_name} quality low, results may be limited")
+            print(f"warning [fallback] all fallbacks failed for {section_name}")
+            print(f"warning: {section_name} quality low, results may be limited")
 
         # Return original content with warning
         return primary_content, "failed"

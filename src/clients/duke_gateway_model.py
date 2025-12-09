@@ -10,7 +10,7 @@ better quality and performance.
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from .prompt_loader import get_prompt
+from ..utils.prompt_loader import get_prompt
 
 try:
     from openai import OpenAI

@@ -1,189 +1,75 @@
 # Attribution
 
-This document provides detailed attribution for AI-generated code, external libraries, datasets, APIs, and other resources used in FinBrief.
+## Dataset Attribution
 
-## AI-Generated Code
+**Financial PhraseBank** - Malo et al., "Good debt or bad debt: Detecting semantic orientations in economic texts"
+- Source: https://www.kaggle.com/datasets/ankurzing/sentiment-analysis-for-financial-news
+- Paper: https://arxiv.org/abs/1307.5336
+- File: `data/Sentences_75Agree.txt`
+- Usage: Training data for DistilBERT sentiment classifier (4,840 labeled financial sentences)
 
-This project was developed with significant assistance from **Claude (Anthropic)**, an AI assistant. The following components were AI-generated with human oversight and modifications:
+## AI Generated Attributions
 
-### Core Application Code
+As part of this project, I primarily used AI for processing SEC filings, API integrations, and error handling. The overall architecture, RAG pipeline design, and component selection were my own design decisions.
 
-| File | AI Contribution | Human Modifications |
-|------|-----------------|---------------------|
-| `src/finbrief.py` | Full implementation, main orchestration | API key handling, error recovery |
-| `src/sec_edgar_client.py` | Initial implementation, section extraction | User-Agent format, URL fixes |
-| `src/finnhub_client.py` | Full implementation, rate limiting | Market cap formatting fixes |
-| `src/definitions_corpus.py` | Full implementation, search logic | Term curation |
-| `src/rag_system.py` | Vector embedding, FAISS indexing | Memory optimizations |
-| `src/model_handler.py` | GPT-2 integration, LoRA support | Quantization, device selection |
-| `src/educational_brief.py` | Structured output format, parsing | Section formatting |
-| `src/confidence_head.py` | MLP architecture, calibration metrics | Heuristic estimator |
-| `src/lora_trainer.py` | LoRA configuration, training loop | Hyperparameter tuning |
-| `src/training_data_builder.py` | Training example generation | Example templates |
-| `src/finetune.py` | CLI interface, workflow | - |
-| `src/newsapi_client.py` | Full implementation | - |
+**Note on SEC Processing:** Through my experience working on this project, I learned that SEC 10-K/10-Q processing is extremely complicated (inconsistent filing formats/document structures across companies and years and XBRL artifacts)! To address this, I implemented different handlers and validators (with the assistance of AI tools) to account for many different types of edge cases/fallback strategies -- AI was helpful in iterating through these different edge cases.
 
-### Tests
+All AI generated code is attributed at the file level at the very top of each file. The majority of AI assistance was used for API integrations, SEC filing processing, and error handling.
 
-| File | AI Contribution |
-|------|-----------------|
-| `tests/test_definitions_corpus.py` | Full implementation (13 tests) |
-| `tests/test_finnhub_client.py` | Full implementation (15 tests) |
-| `tests/test_rag_system.py` | Full implementation (16 tests) |
-| `tests/test_sec_edgar_client.py` | Full implementation (9 tests) |
+The files in which the majority of the code was AI generated are as follows:
 
-### Configuration and Scripts
+**Client Files (API Integrations)**
+- `src/clients/sec_edgar_client.py`
+- `src/clients/edgartools_client.py`
+- `src/clients/finnhub_client.py`
+- `src/clients/duke_gateway_model.py`
 
-| File | AI Contribution |
-|------|-----------------|
-| `run.sh`, `run.py` | Full implementation |
-| `setup_venv.sh`, `setup_venv.ps1` | Full implementation |
-| `requirements.txt` | Dependency selection |
-| `.env.example` | Template creation |
-| `data/definitions/terms.json` | Term definitions (40 terms) |
+**Utils Files (Processing & Formatting)**
+- `src/utils/section_validator.py`
+- `src/utils/balance_sheet_analyzer.py`
+- `src/utils/educational_brief.py`
+- `src/utils/rich_formatter.py`
+- `src/utils/prompt_loader.py`
+- `src/utils/model_handler.py`
 
-### Documentation
-
-| File | AI Contribution |
-|------|-----------------|
-| `README.md` | Full implementation |
-| `SETUP.md` | Full implementation |
-| `ATTRIBUTION.md` | Template and structure |
-| `IMPLEMENTATION_PLAN.md` | Full implementation |
-| `design.md` | Proposal structure (human content) |
+**Core Application**
+- `src/finbrief.py` - API integration logic, error handling, fallback strategies, data processing workflows
 
 ## External Libraries
 
-### Machine Learning & NLP
-
-| Library | Version | License | Purpose |
-|---------|---------|---------|---------|
-| [PyTorch](https://pytorch.org/) | ≥2.1.0 | BSD-3-Clause | Deep learning framework |
-| [Transformers](https://huggingface.co/transformers) | ≥4.35.0 | Apache 2.0 | LLM model loading and inference |
-| [Sentence-Transformers](https://www.sbert.net/) | ≥2.2.0 | Apache 2.0 | Text embeddings for RAG |
-| [FAISS](https://github.com/facebookresearch/faiss) | ≥1.7.4 | MIT | Vector similarity search |
-| [PEFT](https://github.com/huggingface/peft) | ≥0.7.0 | Apache 2.0 | LoRA fine-tuning |
-| [Datasets](https://huggingface.co/docs/datasets) | ≥2.14.0 | Apache 2.0 | Training data handling |
-| [Accelerate](https://huggingface.co/docs/accelerate) | ≥0.24.0 | Apache 2.0 | Training acceleration |
-
-### Data Processing
-
-| Library | Version | License | Purpose |
-|---------|---------|---------|---------|
-| [Pandas](https://pandas.pydata.org/) | ≥2.1.0 | BSD-3-Clause | Data manipulation |
-| [NumPy](https://numpy.org/) | ≥1.24.0 | BSD-3-Clause | Numerical computing |
-| [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/) | ≥4.12.0 | MIT | HTML parsing |
-| [lxml](https://lxml.de/) | ≥4.9.0 | BSD-3-Clause | XML/HTML processing |
-| [html2text](https://github.com/Alir3z4/html2text) | ≥2020.1.16 | GPL-3.0 | HTML to text conversion |
-
-### API & Web
-
-| Library | Version | License | Purpose |
-|---------|---------|---------|---------|
-| [Requests](https://requests.readthedocs.io/) | ≥2.31.0 | Apache 2.0 | HTTP requests |
-| [python-dotenv](https://github.com/theskumar/python-dotenv) | ≥1.0.0 | BSD-3-Clause | Environment variable loading |
-
-### Testing
-
-| Library | Version | License | Purpose |
-|---------|---------|---------|---------|
-| [pytest](https://pytest.org/) | ≥7.0.0 | MIT | Testing framework |
+- [PyTorch](https://pytorch.org/)
+- [Transformers](https://huggingface.co/transformers)
+- [Sentence-Transformers](https://www.sbert.net/)
+- [FAISS](https://github.com/facebookresearch/faiss)
+- [scikit-learn](https://scikit-learn.org/)
+- [Pandas](https://pandas.pydata.org/)
+- [NumPy](https://numpy.org/)
+- [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
+- [lxml](https://lxml.de/)
+- [Requests](https://requests.readthedocs.io/)
+- [python-dotenv](https://github.com/theskumar/python-dotenv)
+- [Streamlit](https://github.com/streamlit/streamlit)
+- [edgartools](https://github.com/dgunning/edgartools)
 
 ## Pre-trained Models
 
-### Embedding Model
-
-| Model | Source | License | Purpose |
-|-------|--------|---------|---------|
-| [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) | Sentence-Transformers | Apache 2.0 | 384-dim text embeddings |
-
-### Language Models
-
-| Model | Source | License | Purpose |
-|-------|--------|---------|---------|
-| [GPT-2 Medium](https://huggingface.co/gpt2-medium) | OpenAI/HuggingFace | MIT | Primary generator (355M) |
-| [DistilGPT2](https://huggingface.co/distilgpt2) | HuggingFace | Apache 2.0 | Lightweight alternative (82M) |
-| [TinyLlama-1.1B-Chat](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) | TinyLlama/HuggingFace | Apache 2.0 | Alternative generator |
+- [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) - Semantic embeddings for RAG retrieval ([Sentence-BERT paper](https://arxiv.org/abs/1908.10084))
+- [GPT-4.1](https://platform.openai.com/docs/models) - Primary LLM for report generation (via Duke AI Gateway)
+- [Mistral 7B](https://mistral.ai/) - Alternative LLM (via Duke AI Gateway)
+- [DistilBERT](https://huggingface.co/distilbert-base-uncased) - Financial sentiment classification ([paper](https://arxiv.org/abs/1910.01108)), fine-tuned on Financial PhraseBank
 
 ## External APIs
 
-### SEC EDGAR
-
-- **Provider:** U.S. Securities and Exchange Commission
-- **URL:** https://www.sec.gov/edgar/sec-api-documentation
-- **License:** Public Domain (U.S. Government Work)
-- **Usage:** Fetching 10-K, 10-Q, and 8-K filings
-- **Rate Limits:** 10 requests/second recommended
-- **Requirements:** User-Agent header with identifying information
-
-### Finnhub
-
-- **Provider:** Finnhub Stock API
-- **URL:** https://finnhub.io/
-- **License:** Proprietary (API Terms of Service)
-- **Usage:** Real-time financial metrics (P/E, EPS, Market Cap, etc.)
-- **Rate Limits:** 60 calls/minute (free tier)
-- **Requirements:** API key (free registration)
-
-### NewsAPI (Optional)
-
-- **Provider:** NewsAPI.org
-- **URL:** https://newsapi.org/
-- **License:** Proprietary (API Terms of Service)
-- **Usage:** Fetching news articles about companies
-- **Rate Limits:** 100 requests/day (free tier)
-- **Requirements:** API key (free registration)
-
-## Data Sources for Definitions Corpus
-
-The financial term definitions were curated from:
-
-### Investor.gov (SEC)
-
-- **URL:** https://www.investor.gov/introduction-investing/investing-basics/glossary
-- **License:** Public Domain (U.S. Government Work)
-- **Terms:** Primary source for SEC-related terms (10-K, 10-Q, 8-K, etc.)
-
-### Investopedia
-
-- **URL:** https://www.investopedia.com/financial-term-dictionary-4769738
-- **License:** Content used for educational paraphrasing
-- **Terms:** General financial concepts (P/E ratio, EPS, market cap, etc.)
-
-## Code References
-
-### SEC EDGAR API Usage
-- SEC API Documentation: https://www.sec.gov/edgar/sec-api-documentation
-- SEC Developer Resources: https://www.sec.gov/developer
-
-### FAISS Implementation
-- FAISS GitHub: https://github.com/facebookresearch/faiss
-- FAISS Tutorial: https://github.com/facebookresearch/faiss/wiki
-
-### LoRA Fine-Tuning
-- PEFT Documentation: https://huggingface.co/docs/peft
-- LoRA Paper: https://arxiv.org/abs/2106.09685
-
-### Apple Silicon Optimization
-- PyTorch MPS Backend: https://pytorch.org/docs/stable/notes/mps.html
-- Apple Developer Documentation: https://developer.apple.com/metal/pytorch/
-
-## License Summary
-
-This project uses components under the following licenses:
-- **Apache 2.0:** Transformers, Sentence-Transformers, PEFT, Requests
-- **MIT:** FAISS, GPT-2, pytest
-- **BSD-3-Clause:** PyTorch, Pandas, NumPy, python-dotenv
-- **GPL-3.0:** html2text
-
-All dependencies are compatible with educational and research use.
+- [SEC EDGAR API](https://www.sec.gov/edgar/sec-api-documentation) - Fetching 10-K, 10-Q company filings
+- [Finnhub Stock API](https://finnhub.io/) - Real-time financial metrics (P/E ratio, EPS, Market Cap, etc.)
+- [Duke AI Gateway](https://ai.cs.duke.edu/) - Access to frontier LLMs (GPT-4.1, Mistral on-site)
 
 ## Acknowledgments
 
-- **Anthropic** for Claude AI assistance in development
-- **HuggingFace** for hosting pre-trained models and PEFT library
-- **U.S. Securities and Exchange Commission** for free access to SEC EDGAR filings
+- **U.S. Securities and Exchange Commission** for free public access to SEC EDGAR filings
+- **Duke University** for LiteLLM Gateway access to frontier models
+- **HuggingFace** for hosting pre-trained models
 - **Finnhub** for financial metrics API
-- **Meta AI Research** for FAISS vector search
-- **Sentence-Transformers** team for embedding models
-- **CS372 Course Staff** at Duke University
+- **Meta AI Research** for FAISS
+- **Malo et al.** for Financial PhraseBank dataset
+

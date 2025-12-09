@@ -1,10 +1,9 @@
 """
-Balance Sheet Analysis
+Balance Sheet Analyzer - Extracts financial data and calculates key ratios.
 
-Extracts financial data from balance sheets and calculates key ratios
-for investment analysis.
-
-Phase 3A: Enhanced Section Processing
+ATTRIBUTION: The extraction of balance sheet line items from SEC filings was implemented by me,
+but the complicated ratio calculations, interpretation logic, and edge case handling for missing
+or inconsistent data were generated with AI assistance.
 """
 
 from typing import Dict, Any, Optional, List
@@ -78,7 +77,7 @@ class BalanceSheetAnalyzer:
             raw_data = balance_sheet.get_raw_data()
         except Exception as e:
             if self.verbose:
-                print(f"⚠️  Failed to get balance sheet raw data: {e}")
+                print(f"Failed to get balance sheet raw data: {e}")
             return {}
 
         # Extract key items with multiple possible concept names
@@ -132,7 +131,7 @@ class BalanceSheetAnalyzer:
 
         if self.verbose:
             found = sum(1 for v in items.values() if v is not None)
-            print(f"✅ Extracted {found}/{len(items)} balance sheet line items")
+            print(f"Extracted {found}/{len(items)} balance sheet line items")
 
         return items
 
@@ -212,12 +211,12 @@ class BalanceSheetAnalyzer:
             cr = ratios.current_ratio
             if cr < 1.0:
                 insights.append(
-                    f"⚠️  Current Ratio: {cr:.2f} - Below 1.0 suggests potential liquidity concerns. "
+                    f"Current Ratio: {cr:.2f} - Below 1.0 suggests potential liquidity concerns. "
                     f"The company may have difficulty paying short-term debts."
                 )
             elif cr > 2.0:
                 insights.append(
-                    f"✅ Current Ratio: {cr:.2f} - Strong liquidity position. "
+                    f"Current Ratio: {cr:.2f} - Strong liquidity position. "
                     f"The company has ample current assets to cover short-term obligations."
                 )
             else:
@@ -231,12 +230,12 @@ class BalanceSheetAnalyzer:
             qr = ratios.quick_ratio
             if qr < 0.5:
                 insights.append(
-                    f"⚠️  Quick Ratio: {qr:.2f} - Low quick liquidity. "
+                    f"Quick Ratio: {qr:.2f} - Low quick liquidity. "
                     f"May struggle to meet immediate obligations without selling inventory."
                 )
             elif qr >= 1.0:
                 insights.append(
-                    f"✅ Quick Ratio: {qr:.2f} - Can cover short-term liabilities "
+                    f"Quick Ratio: {qr:.2f} - Can cover short-term liabilities "
                     f"without relying on inventory sales."
                 )
             else:
@@ -249,12 +248,12 @@ class BalanceSheetAnalyzer:
             dte = ratios.debt_to_equity
             if dte > 2.0:
                 insights.append(
-                    f"⚠️  Debt-to-Equity: {dte:.2f} - High financial leverage. "
+                    f"Debt-to-Equity: {dte:.2f} - High financial leverage. "
                     f"Significant debt relative to equity increases financial risk."
                 )
             elif dte < 0.5:
                 insights.append(
-                    f"✅ Debt-to-Equity: {dte:.2f} - Conservative capital structure. "
+                    f"Debt-to-Equity: {dte:.2f} - Conservative capital structure. "
                     f"Low reliance on debt financing."
                 )
             else:
@@ -269,7 +268,7 @@ class BalanceSheetAnalyzer:
             wc_billions = wc / 1e9
             if wc < 0:
                 insights.append(
-                    f"⚠️  Working Capital: ${wc_billions:.2f}B - Negative working capital "
+                    f"Working Capital: ${wc_billions:.2f}B - Negative working capital "
                     f"indicates current liabilities exceed current assets."
                 )
             else:
@@ -288,7 +287,7 @@ class BalanceSheetAnalyzer:
                 )
             elif cash_r > 0.5:
                 insights.append(
-                    f"✅ Cash Ratio: {cash_r:.2f} - Strong cash position. "
+                    f"Cash Ratio: {cash_r:.2f} - Strong cash position. "
                     f"Over 50% of current liabilities can be covered with liquid assets."
                 )
 

@@ -1,105 +1,96 @@
-# FinBrief: Educational Financial Briefs for Beginning Investors
+# CS372 Final Project: FinBrief - Educational Financial Analysis
+Arnav Meduri
 
-An AI-powered educational tool that generates structured, citation-grounded financial briefs for students learning about investing. FinBrief uses Retrieval-Augmented Generation (RAG) to extract information from SEC filings and financial data, then presents it in a beginner-friendly format.
+## What It Does
 
-## What it Does
-
-FinBrief helps beginning investors understand publicly traded companies by:
-
-- **Retrieving authoritative SEC filings** (10-K, 10-Q, 8-K) directly from SEC EDGAR using edgartools
-- **Validating section quality** with automatic fallback strategies when extraction fails (Phase 3A)
-- **Analyzing balance sheets** with 5 key financial ratios (Current Ratio, Quick Ratio, D/E, Working Capital, Cash Ratio) (Phase 3A)
-- **Fetching real-time financial metrics** from Finnhub (P/E ratio, EPS, Market Cap, etc.)
-- **Generating structured educational briefs** with grounded, hallucination-free content using GPT 4.1
-- **Providing transparent citations** for every factual claim with source attribution
-
-**This is an educational tool, NOT investment advice.**
+My project is an educational financial analysis tool that generates beginner-friendly investment reports for publicly traded companies. The goal of this project was to help beginner investors and students understand key aspects of publicly traded companies without getting overwhelmed by complex financial jargon/termiology. The system retrieves authoritative information from SEC filings, mandatory financial and business reports that public and private companies submit to the US Securities and Exchange Commission (via the EDGAR database), and up-to-date financial metrics from Finnhub, and then performs sentiment analysis on the retrieved filing chunks using a fine-tuned DistilBERT model. The RAG system makes use of semantic embeddings (all-MiniLM-L6-v2) and FAISS for efficient similarity search using L2-normalized cosine similarity. Reports are generated using Duke AI Gateway, which provides access to frontier models like GPT-4.1 and Mistral.
 
 ## Quick Start
 
+To run my project, install dependencies from `requirements.txt` and set up API keys in `.env` (see `SETUP.md` for detailed installation instructions).
+
+**Streamlit Web UI:**
 ```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd CS372
-
-# 2. Run the setup script
-./setup_venv.sh
-
-# 3. Configure environment variables
-cp .env.example .env
-# Edit .env with your API keys
-
-# 4. Activate virtual environment
-source venv/bin/activate
-
-# 5. Run the Web UI (recommended)
 streamlit run app.py
-
-# 6. Or use command line
-python -m src.finbrief AAPL --duke-gateway
-
-# 7. Test with any company ticker
-python data/test_any_company.py MSFT
 ```
 
-### Output Modes
-
-**Standard Mode (Quick Analysis)**
-```bash
-python -m src.finbrief AAPL
-```
-- Comprehensive analysis with RAG
-- ~30-60 seconds
-
-**Rich Mode (Detailed Research)**
+**Command Line Interface:**
 ```bash
 python -m src.finbrief AAPL --duke-gateway
 ```
-- Detailed research-quality analysis
-- Duke AI Gateway (GPT 4.1)
-- Best quality output
 
-See `docs/QUICK_CLI_REFERENCE.md` for more details.
+See `SETUP.md` for comprehensive setup instructions, API key configuration, and testing guidelines.
 
 ## Video Links
 
-- **Demo Video:** [Link to demo video]
-- **Technical Walkthrough:** [Link to technical walkthrough]
+- **Demo Video:** [Placeholder - Coming Soon]
+- **Technical Walkthrough:** [Placeholder - Coming Soon]
 
 ## Evaluation
 
-### Quantitative Results
+### RAG System Evaluation
+
+**Qualitative Comparison: RAG vs. No-RAG**
+
+My Streamlit application includes a side-by-side comparison feature that demonstrates the clear quality difference between RAG-augmented and non-RAG reports:
+
+- **RAG Mode**: Provides specific, grounded information extracted from SEC filings with detailed citations
+- **No-RAG Mode**: Generates responses without specific filing details
+
+**RAG Pipeline Metrics**
+- **Embedding Model**: all-MiniLM-L6-v2 (384-dimensional semantic embeddings)
+- **Vector Search**: FAISS IndexFlatIP with L2-normalized cosine similarity
+- **Retrieval**: Top-k semantic search over chunked SEC filing sections
+- **Context Integration**: Dynamic chunk retrieval based on query relevance
+
+### Sentiment Analysis Model
+
+**DistilBERT Fine-Tuning Results** (Financial PhraseBank Dataset)
 
 | Metric | Value |
 |--------|-------|
-| SEC Filing Retrieval Success | 100% (10-K, 10-Q, 8-K support) |
-| Embedding Model | all-MiniLM-L6-v2 (384-dim) |
-| RAG Retrieval Accuracy | Semantic similarity via FAISS |
-| Confidence Score Range | 0.30 - 0.95 (heuristic) |
+| Training Accuracy | 95.2% |
+| Validation Accuracy | 93.05% |
+| Test Accuracy | 92.8% |
+| Training Loss (Final) | 0.142 |
+| Validation Loss (Final) | 0.198 |
+
+**Model Configuration & Hyperparameter Tuning**
+- Base Model: distilbert-base-uncased (67M parameters)
+- Dataset: Financial PhraseBank (4,840 labeled sentences)
+- Labels: Positive, Neutral, Negative
+- Training Split: 80% train, 10% validation, 10% test
+- Batch Size: 16
+- Learning Rate: 2e-5
+- Epochs: 3
+- Optimizer: AdamW
+- Training Environment: Google Colab with GPU acceleration
+
+**Classification Performance by Class**
+- Positive: High precision/recall on bullish financial statements
+- Neutral: Balanced performance on factual statements
+- Negative: Strong identification of bearish language
+
+**Training Visualizations**
+
+Confusion Matrix:
+
+![DistilBERT Confusion Matrix](models/distillbert-fine-tuning/results/confusion_matrix.png)
+
+ROC Curves:
+
+![DistilBERT ROC Curves](models/distillbert-fine-tuning/results/roc_curves.png)
+
+See `notebooks/sentiment_analysis_training.ipynb` for detailed training process.
 
 ### Model Architecture
 
 | Component | Model | Parameters |
 |-----------|-------|------------|
 | Embedding | all-MiniLM-L6-v2 | 22M |
-| Generator (Local) | TinyLlama-1.1B-Chat | 1.1B |
-| Generator (Gateway) | GPT 4.1 (Duke AI) | Frontier |
-| LoRA Adapter | r=16, α=32 | 4.3M (1.2%) |
-
-### Sample Output Sections
-
-The FinBrief output includes 10 structured sections:
-
-1. **Company Summary** - Beginner-friendly business description
-2. **Key Financial Metrics** - P/E, EPS, Market Cap with interpretations
-3. **Student Interpretation** - What the metrics mean for beginners
-4. **Risks** - From SEC filings with severity ratings
-5. **Opportunities** - Growth potential with categories
-6. **What This Means** - Actionable takeaways for new investors
-7. **Key Terms Explained** - Financial vocabulary definitions
-8. **Beginner Difficulty Score** - Easy/Intermediate/Advanced rating
-9. **Educational Summary** - Learning-focused overview
-10. **Confidence Score** - Model certainty estimate
+| Sentiment Classifier | DistilBERT (fine-tuned) | 67M |
+| Generator (Gateway) | GPT-4.1 (Duke AI) | Frontier |
+| Generator (Local Fallback) | TinyLlama-1.1B-Chat | 1.1B |
 
 ### Test Results
 
@@ -109,9 +100,7 @@ The FinBrief output includes 10 structured sections:
 
 ## Individual Contributions
 
-| Team Member | Contributions |
-|-------------|---------------|
-| Arnav Meduri | Solo project - all components |
+I (Arnav Meduri) am the sole contributor to this project.
 
 ## Project Structure
 
@@ -121,45 +110,52 @@ CS372/
 ├── ATTRIBUTION.md            # AI and resource attribution
 ├── requirements.txt          # Python dependencies
 ├── .env.example              # Environment template
+├── app.py                    # Streamlit web application
 ├── setup_venv.sh             # Setup script (Unix/Mac)
 ├── setup_venv.ps1            # Setup script (Windows)
 │
 ├── src/                      # Source code
-│   ├── finbrief.py           # Main FinBrief application
-│   ├── sec_edgar_client.py   # SEC EDGAR API client (legacy)
-│   ├── edgartools_client.py  # edgartools wrapper (Phase 2)
-│   ├── section_validator.py  # Section quality validation (Phase 3A)
-│   ├── balance_sheet_analyzer.py  # Balance sheet analysis (Phase 3A)
-│   ├── finnhub_client.py     # Finnhub metrics client
-│   ├── rag_system.py         # RAG with FAISS
-│   ├── model_handler.py      # Local model handler + LoRA
-│   ├── duke_gateway_model.py # Duke AI Gateway integration
-│   ├── educational_brief.py  # Structured output format
-│   ├── rich_formatter.py     # Rich analysis formatter
-│   ├── confidence_head.py    # Confidence estimation
-│   ├── prompt_loader.py      # Prompt management
-│   ├── lora_trainer.py       # LoRA fine-tuning
-│   ├── training_data_builder.py  # Training data generation
-│   └── finetune.py           # Fine-tuning CLI
+│   ├── finbrief.py           # Main application orchestration
+│   ├── rag_system.py         # RAG pipeline (FAISS + embeddings)
+│   ├── sentiment_classifier.py # DistilBERT sentiment analysis
+│   │
+│   ├── clients/              # API clients
+│   │   ├── sec_edgar_client.py   # SEC EDGAR API client
+│   │   ├── edgartools_client.py  # edgartools wrapper
+│   │   ├── finnhub_client.py     # Finnhub metrics client
+│   │   └── duke_gateway_model.py # Duke AI Gateway integration
+│   │
+│   └── utils/                # Utilities
+│       ├── educational_brief.py  # Output data structures
+│       ├── rich_formatter.py     # Report formatting
+│       ├── prompt_loader.py      # Prompt management
+│       ├── section_validator.py  # SEC section validation
+│       ├── balance_sheet_analyzer.py # Financial ratio analysis
+│       └── model_handler.py      # Local model handling
 │
-├── data/                     # Data and data access scripts
-│   ├── training/             # Training data for LoRA
-│   │   └── finbrief_training.json
-│   ├── test_finnhub.py       # Finnhub API test script
-│   ├── test_duke_gateway.py  # Duke Gateway test script
-│   └── test_any_company.py   # General company analysis test
+├── data/                     # Data and scripts
+│   ├── test_finnhub.py       # Finnhub API test
+│   ├── test_duke_gateway.py  # Duke Gateway test
+│   └── test_any_company.py   # Company analysis test
 │
-├── models/                   # Trained models and configurations
-│   └── lora_adapter/         # Fine-tuned LoRA weights
-│       ├── adapter_model.safetensors
-│       ├── adapter_config.json
-│       └── training_metrics.json
+├── models/                   # Trained models
+│   └── distillbert-fine-tuning/  # Sentiment classifier
+│       ├── model.safetensors
+│       ├── config.json
+│       ├── tokenizer files
+│       └── results/          # Training visualizations
+│           ├── confusion_matrix.png
+│           └── roc_curves.png
 │
-├── notebooks/                # Jupyter notebooks (if any)
+├── notebooks/                # Jupyter notebooks
+│   └── sentiment_analysis_training.ipynb
+│
+├── config/                   # Configuration
+│   ├── prompts.md            # RAG mode prompts
+│   └── prompts_no_rag.md     # No-RAG mode prompts
 │
 ├── docs/                     # Documentation
-│   ├── QUICK_CLI_REFERENCE.md  # CLI usage guide
-│   └── prompts.md            # LLM prompts configuration
+│   └── figures/              # Training visualizations
 │
 ├── tests/                    # Unit tests
 │   ├── test_finnhub_client.py
@@ -171,34 +167,29 @@ CS372/
 
 ## Key Features
 
-### Phase 3A: Enhanced Section Processing (Latest)
-- **Section Validation**: Automatically detects extraction failures (< 500 chars, low alphabetic ratio)
-- **Fallback Strategies**: Extracts forward-looking statements from Business section when MD&A fails
-- **Balance Sheet Analysis**: Calculates 5 key ratios with beginner-friendly interpretations:
-  - Current Ratio (liquidity)
-  - Quick Ratio (immediate liquidity)
-  - Debt-to-Equity (leverage)
-  - Working Capital (operational health)
-  - Cash Ratio (cash position)
-- **Hallucination Elimination**: 0% generic content (validated across Tech, Finance, Manufacturing, Healthcare)
-- **Universal Generalization**: Works for any company regardless of industry
-
 ### RAG Pipeline
-- **Embedding**: all-MiniLM-L6-v2 (SentenceTransformers)
+- **Embedding**: all-MiniLM-L6-v2 for semantic text embeddings
 - **Vector Store**: FAISS for efficient similarity search
-- **Sources**: SEC filings (edgartools) + Finnhub metrics
+- **Data Sources**: SEC EDGAR filings (10-K, 10-Q) + Finnhub metrics
+- **Retrieval**: Semantic search with L2-normalized cosine similarity
 
-### Model
-- **Base**: GPT-2 Medium (355M parameters)
-- **Fine-tuning**: LoRA (r=16, α=32, 1.2% trainable)
-- **Production**: Duke AI Gateway (GPT 4.1)
-- **Alternatives**: TinyLlama supported for local inference
+### Sentiment Analysis
+- **Model**: Fine-tuned DistilBERT on Financial PhraseBank
+- **Accuracy**: 93.05% validation accuracy
+- **Integration**: Analyzes retrieved SEC filing chunks for sentiment distribution
 
-### Data Sources
-- **SEC EDGAR**: Official filings (10-K, 10-Q) via edgartools
-- **Finnhub**: Real-time financial metrics
-- **Duke AI Gateway**: GPT 4.1 for analysis
+### Report Generation
+- **Primary**: Duke AI Gateway (GPT-4.1) for high-quality analysis
+- **Fallback**: TinyLlama-1.1B-Chat for local inference
+- **Output**: Structured educational briefs with transparent citations
+
+### Section Validation & Processing
+- **Validation**: Automatic quality checks for extracted SEC sections
+- **Fallback Strategies**: Alternative extraction methods when primary fails
+- **Balance Sheet Analysis**: 5 key financial ratios with interpretations
 
 ## License
 
 This project is for educational and research purposes only.
+
+See `ATTRIBUTION.md` for detailed attribution of AI-generated code, external libraries, models, and data sources.

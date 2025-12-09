@@ -1,40 +1,55 @@
 """
 FinBrief: Educational Financial Brief Generator
 
-A comprehensive tool for generating beginner-investor-oriented investment education using:
-- SEC EDGAR filings (10-K, 10-Q, 8-K)
-- Finnhub financial metrics
-- RAG-based retrieval (MiniLM + FAISS)
-- Duke AI Gateway (GPT 4.1) with local model fallback
-
-Supports both CLI and programmatic usage.
+A comprehensive tool for generating beginner-investor-oriented investment education using
+SEC EDGAR filings (10-K, 10-Q), Finnhub financial metrics, RAG-based retrieval (MiniLM + FAISS)
+sentiment analysis (DistilBERT), and LLM generation (Duke AI Gateway).
 """
 
-# Core components
-from .sec_edgar_client import SECEdgarClient
+# Core ML components
 from .rag_system import RAGSystem, DocumentChunk
-from .model_handler import FinBriefModel
-from .duke_gateway_model import DukeGatewayModel
-
-# FinBrief components
-from .finnhub_client import FinnhubClient, FinancialMetrics
-from .educational_brief import (
-    EducationalBrief, EducationalBriefFormatter,
-    RiskItem, OpportunityItem, TermExplanation, FinancialMetric, Citation,
-    DifficultyLevel, RiskSeverity
-)
+from .sentiment_classifier import SentimentClassifier
 from .finbrief import FinBriefApp
-from .confidence_head import ConfidenceHead, HeuristicConfidenceEstimator
+
+# API clients
+from .clients import (
+    SECEdgarClient,
+    EdgarToolsClient,
+    FinnhubClient,
+    FinancialMetrics,
+    DukeGatewayModel
+)
+
+# Utilities
+from .utils import (
+    EducationalBrief,
+    EducationalBriefFormatter,
+    RiskItem,
+    OpportunityItem,
+    TermExplanation,
+    FinancialMetric,
+    Citation,
+    DifficultyLevel,
+    RiskSeverity,
+    SentimentAnalysis,
+    RichAnalysisFormatter,
+    PromptLoader,
+    get_prompt,
+    SectionValidator,
+    BalanceSheetAnalyzer,
+    FinBriefModel
+)
 
 __version__ = "2.0.0"
 __all__ = [
     "FinBriefApp",
-    "SECEdgarClient",
-    "FinnhubClient",
-    "FinancialMetrics",
     "RAGSystem",
     "DocumentChunk",
-    "FinBriefModel",
+    "SentimentClassifier",
+    "SECEdgarClient",
+    "EdgarToolsClient",
+    "FinnhubClient",
+    "FinancialMetrics",
     "DukeGatewayModel",
     "EducationalBrief",
     "EducationalBriefFormatter",
@@ -45,6 +60,11 @@ __all__ = [
     "Citation",
     "DifficultyLevel",
     "RiskSeverity",
-    "ConfidenceHead",
-    "HeuristicConfidenceEstimator",
+    "SentimentAnalysis",
+    "RichAnalysisFormatter",
+    "PromptLoader",
+    "get_prompt",
+    "SectionValidator",
+    "BalanceSheetAnalyzer",
+    "FinBriefModel",
 ]

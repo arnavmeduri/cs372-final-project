@@ -2,17 +2,9 @@
 FinBrief: Educational financial brief output format.
 Generates student-oriented, beginner-friendly investment analysis.
 
-Based on design.md output format:
-1. Company Summary (Beginner-Friendly)
-2. Key Financial Metrics for Students
-3. Opportunities (Based on SEC filings)
-4. Risks Students Should Understand
-5. What This Means for a New Investor
-6. Key Terms Explained
-7. Beginner Difficulty Score
-8. Educational Summary (Not Investment Advice)
-9. Retrieval Sources
-10. Model-Estimated Confidence (optional)
+ATTRIBUTION: The majority of code in this file was generated with AI assistance.
+I took advantage of AI to handle dataclass definitions, JSON serialization, and type
+handling for structured data storage and conversion. The data structure design and field selection were mine.
 """
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
@@ -48,8 +40,8 @@ class RiskItem:
 class OpportunityItem:
     """A growth opportunity from SEC filings."""
     description: str
-    citation: str  # e.g., "(10-K Item 7)"
-    category: str = ""  # e.g., "Services Growth", "Market Expansion"
+    citation: str 
+    category: str = ""  
 
 
 @dataclass
@@ -57,7 +49,7 @@ class TermExplanation:
     """A financial term explanation for beginners."""
     term: str
     definition: str
-    source: str  # "Investor.gov" or "Investopedia"
+    source: str  
 
 
 @dataclass
@@ -71,18 +63,18 @@ class FinancialMetric:
 @dataclass
 class Citation:
     """A source citation."""
-    source_type: str  # 'SEC Filing', 'Definitions', 'Finnhub'
-    details: str  # e.g., "10-K (Sections 1, 1A, 7)"
+    source_type: str  
+    details: str  
 
 
 @dataclass
 class SentimentAnalysis:
     """Sentiment analysis of SEC filing chunks."""
-    positive_pct: float  # Percentage of positive chunks
-    neutral_pct: float   # Percentage of neutral chunks
-    negative_pct: float  # Percentage of negative chunks
-    total_chunks: int    # Number of chunks analyzed
-    overall_tone: str    # "Positive", "Neutral", "Negative", or "Mixed"
+    positive_pct: float  
+    neutral_pct: float   
+    negative_pct: float  
+    total_chunks: int    
+    overall_tone: str    
 
 
 @dataclass
@@ -96,40 +88,29 @@ class EducationalBrief:
     company_name: str
     analysis_date: str
     
-    # 1. Company Summary
+    # Company summary
     company_summary: str
     summary_citations: List[str] = field(default_factory=list)
     
-    # 2. Key Financial Metrics
     metrics: List[FinancialMetric] = field(default_factory=list)
     metrics_interpretation: str = ""
     
-    # 3. Opportunities
     opportunities: List[OpportunityItem] = field(default_factory=list)
     
-    # 4. Risks
     risks: List[RiskItem] = field(default_factory=list)
-    
-    # 5. What This Means for a New Investor
+
     investor_takeaway: str = ""
     
-    # 6. Key Terms Explained
     terms_explained: List[TermExplanation] = field(default_factory=list)
     
-    # 7. Beginner Difficulty Score
+
     difficulty: DifficultyLevel = DifficultyLevel.MODERATE
     difficulty_reason: str = ""
     
-    # 8. Educational Summary
     educational_summary: str = ""
     
-    # 9. Retrieval Sources
     sources: List[Citation] = field(default_factory=list)
     
-    # 10. Model Confidence (optional)
-    confidence_score: Optional[float] = None
-    
-    # 11. Sentiment Analysis (optional)
     sentiment_analysis: Optional[SentimentAnalysis] = None
     
     def to_dict(self) -> Dict:
@@ -155,7 +136,6 @@ class EducationalBrief:
             'difficulty_reason': self.difficulty_reason,
             'educational_summary': self.educational_summary,
             'sources': [{'source_type': s.source_type, 'details': s.details} for s in self.sources],
-            'confidence_score': self.confidence_score,
             'sentiment_analysis': {
                 'positive_pct': self.sentiment_analysis.positive_pct,
                 'neutral_pct': self.sentiment_analysis.neutral_pct,
@@ -271,11 +251,6 @@ class EducationalBriefFormatter:
                 lines.append(f"  • {source.source_type}: {source.details}")
             lines.append("")
         
-        # 10. Confidence Score (optional)
-        if brief.confidence_score is not None:
-            lines.append(f"10. Model-Estimated Confidence: {brief.confidence_score:.2f}")
-            lines.append("")
-        
         lines.append("=" * 80)
         lines.append("This is educational content for learning purposes only.")
         lines.append("    It is NOT investment advice. Always do your own research.")
@@ -364,11 +339,6 @@ class EducationalBriefFormatter:
                 lines.append(f"- **{source.source_type}**: {source.details}")
             lines.append("")
         
-        # 10. Confidence
-        if brief.confidence_score is not None:
-            lines.append(f"## 10. Model-Estimated Confidence: {brief.confidence_score:.2f}")
-            lines.append("")
-        
         lines.append("---")
         lines.append("*This is educational content for learning purposes only. It is NOT investment advice.*")
         
@@ -397,113 +367,12 @@ class EducationalBriefFormatter:
         return "\n".join(lines)
     
     def _get_severity_icon(self, severity: RiskSeverity) -> str:
-        """Get icon for risk severity."""
+        """Get icon for risk severity (used in CLI output only)."""
         icons = {
-            RiskSeverity.HIGH: "🔴",
-            RiskSeverity.MEDIUM_HIGH: "🟠",
-            RiskSeverity.MEDIUM: "🟡",
-            RiskSeverity.LOW: "🟢"
+            RiskSeverity.HIGH: "[HIGH]",
+            RiskSeverity.MEDIUM_HIGH: "[MED-HIGH]",
+            RiskSeverity.MEDIUM: "[MEDIUM]",
+            RiskSeverity.LOW: "[LOW]"
         }
-        return icons.get(severity, "⚪")
-
-
-# Example usage / testing
-if __name__ == "__main__":
-    # Create a sample brief matching the design.md example
-    brief = EducationalBrief(
-        ticker="AAPL",
-        company_name="Apple Inc.",
-        analysis_date="2024-12-05",
-        company_summary=(
-            "Apple designs and sells consumer electronics such as the iPhone, Mac, and iPad. "
-            "The company generates most of its revenue from hardware, but Services (iCloud, "
-            "App Store, AppleCare) have grown steadily. Apple's financial statements show "
-            "consistent profitability, strong cash reserves, and large-scale share repurchases."
-        ),
-        summary_citations=["(10-K Item 1: Business)", "(10-K Item 7: MD&A)"],
-        metrics=[
-            FinancialMetric("Market Cap", "$3.2T"),
-            FinancialMetric("P/E Ratio", "29.1"),
-            FinancialMetric("Revenue Growth (YoY)", "+7.8%"),
-            FinancialMetric("EPS (TTM)", "$6.42"),
-            FinancialMetric("Debt-to-Equity", "1.78"),
-        ],
-        metrics_interpretation=(
-            "A higher P/E ratio means the stock is relatively expensive compared to earnings. "
-            "Apple's P/E is above the S&P 500 average, which suggests investors expect continued growth."
-        ),
-        opportunities=[
-            OpportunityItem(
-                "Growth in the Services segment continues to raise margins",
-                "(10-K Item 7)",
-                "Services Growth"
-            ),
-            OpportunityItem(
-                "Expansion in emerging markets increases long-term customer acquisition",
-                "(10-K Item 1A)",
-                "Market Expansion"
-            ),
-            OpportunityItem(
-                "Large cash reserves support continued buybacks and R&D",
-                "(10-K Financial Statements)",
-                "Capital Allocation"
-            ),
-        ],
-        risks=[
-            RiskItem(
-                "Supply chain disruptions may reduce hardware shipments",
-                RiskSeverity.MEDIUM,
-                "(10-K Item 1A)"
-            ),
-            RiskItem(
-                "High dependence on the iPhone line creates concentration risk",
-                RiskSeverity.MEDIUM_HIGH,
-                "(10-K Item 7)"
-            ),
-            RiskItem(
-                "Regulatory pressure and antitrust investigations may limit services revenue",
-                RiskSeverity.HIGH,
-                "(10-K Item 1A)"
-            ),
-        ],
-        investor_takeaway=(
-            "Apple is financially stable, but its valuation is already high, which means "
-            "future returns depend on continued growth. Beginners often misunderstand that "
-            "strong companies do not always make the best investments at any price. Apple is "
-            "strong fundamentally, but the stock may be priced for perfection."
-        ),
-        terms_explained=[
-            TermExplanation(
-                "Earnings Per Share (EPS)",
-                "Profit divided by the number of shares. Shows how much money the company earns per share you could buy.",
-                "Investor.gov"
-            ),
-            TermExplanation(
-                "P/E Ratio",
-                "Measures how expensive a stock is relative to earnings. High P/E = high expectations.",
-                "Investopedia"
-            ),
-            TermExplanation(
-                "Risk Factor",
-                "A potential event that could negatively affect performance. Required in SEC filings.",
-                "Investor.gov"
-            ),
-        ],
-        difficulty=DifficultyLevel.MODERATE,
-        difficulty_reason="Large company with predictable results, but heavy financial terminology in the filings.",
-        educational_summary=(
-            "Apple remains highly profitable with durable brand power. Students should pay "
-            "attention to the relationship between growth in Services and overall valuation, "
-            "and how regulatory pressures could affect margin expansion."
-        ),
-        sources=[
-            Citation("SEC Filing", "10-K (Sections 1, 1A, 7)"),
-            Citation("Definitions", "Investor.gov (EPS, Risk Factor), Investopedia (P/E Ratio)"),
-            Citation("Finnhub", "Basic Metrics"),
-        ],
-        confidence_score=0.84
-    )
-    
-    formatter = EducationalBriefFormatter()
-    print(formatter.format_text(brief))
+        return icons.get(severity, "[UNKNOWN]")
 

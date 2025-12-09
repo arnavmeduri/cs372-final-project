@@ -1,6 +1,11 @@
 """
 SEC EDGAR API Client for fetching company filings and financial reports.
 Supports 10-K (annual), 10-Q (quarterly), and 8-K (material events) filings.
+
+ATTRIBUTION: The majority of code in this file was generated with AI assistance.
+I took advantage of AI to handle the tedious work of SEC API integration, HTML/XBRL parsing,
+and regex-based section extraction from complex filing documents.
+The core architecture and design decisions were mine.
 """
 import requests
 import time
