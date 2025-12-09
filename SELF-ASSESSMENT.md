@@ -38,8 +38,8 @@
 **Conducted systematic hyperparameter tuning using validation data (5 pts)**
 - Hyperparameter tuning for DistilBERT: tested learning rates (2e-5, 3e-5, 5e-5), batch sizes (8, 16, 32), and epochs (3, 4, 5) using validation data. Final configuration: learning rate 2e-5, batch size 16, 3 epochs. See `notebooks/sentiment_analysis_training.ipynb` and README.md "Model Configuration & Hyperparameter Tuning" section.
 
-**Used learning rate scheduling (3 pts)**
-- Linear learning rate schedule with warm-up used in DistilBERT training. Implemented via Transformers library's default scheduler in `notebooks/sentiment_analysis_training.ipynb` training loop.
+**Implemented production-grade deployment (evidence of at least two considerations such as rate limiting, caching, monitoring, error handling, logging) (10 pts)**
+- Implemented comprehensive production-grade features: (1) Rate limiting for Finnhub API (`src/clients/finnhub_client.py` lines 176-183, 186-201 with automatic retry on 429 errors), SEC EDGAR API (`src/clients/sec_edgar_client.py` line 252), and Duke Gateway (error handling lines 272-275); (2) Memory management with `clear_memory()` functions (`src/rag_system.py` lines 16-17, `src/utils/model_handler.py` lines 27-37) and KV caching (line 212); (3) Comprehensive error handling with 81+ try/except blocks across all modules; (4) Verbose logging system (`src/finbrief.py` lines 45, 50, 68-114, 117-120) with detailed progress tracking and monitoring; (5) Fallback strategies for section extraction (`src/utils/section_validator.py`), prompt loading (`src/utils/prompt_loader.py` lines 61-75), and RAG chunking (`src/rag_system.py` lines 189-190).
 
 **Trained model using GPU/TPU/CUDA acceleration (5 pts)**
 - DistilBERT fine-tuning performed on Google Colab with GPU acceleration (T4). Training environment documented in README.md and `notebooks/sentiment_analysis_training.ipynb`.
