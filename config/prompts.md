@@ -2,7 +2,7 @@
 
 <!--
 PROMPT DEVELOPMENT NOTE:
-The prompt structure and core design were created by Arnav Meduri.
+The prompt structure and core design were created by me.
 AI assistance was used to iterate and refine the prompts for better clarity and effectiveness.
 -->
 

@@ -1,6 +1,6 @@
 """
 This file loads pre-trained model weights from fine-tuning DistilBERT model on the Financial PhraseBank dataset.
-Model fine-tuning was conducted on Google Colab with GPU (results documented in notebooks/DistillBertTraining.ipynb).
+I conducted fine-tuning on Google Colab with GPU (results documented in notebooks/DistillBertTraining.ipynb).
 """
 import os
 import torch
@@ -10,7 +10,6 @@ from typing import List, Dict
 class SentimentClassifier:
     """
     Sentiment classifier using fine-tuned DistilBERT model.
-    Trained on Financial PhraseBank dataset.
     """
     
     def __init__(self, model_path: str = "models"):
@@ -27,7 +26,6 @@ class SentimentClassifier:
             self.label2id[label_name] = label_id
         
     def _get_device(self) -> str:
-        """Determine best available device."""
         if torch.cuda.is_available():
             return "cuda"
         elif torch.backends.mps.is_available():
