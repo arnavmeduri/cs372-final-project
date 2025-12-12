@@ -1,8 +1,9 @@
 """
-Core RAG system for financial analysis, uses sentence embeddings + FAISS for semantic retrieval from SEC filings.
+Core RAG system which embeds SEC filings & financial data using sentence-transformer embeddings, stores them in 
+a FAISS vector index, and performs semantic retrieval (supplied to LLM for analysis). 
 
-Core RAG logic (vector embeddings, similarity search, retrieval) designed and implemented by myself
-with some AI assistance (logging, fallback handling, and utility functions).
+ATTRIBUTION: Core RAG logic (vector embeddings, similarity search, retrieval) designed and implemented by myself 
+with some AI assistance (keywords, adaptive retrieval, and other utility functions).
 """
 import os
 import gc
@@ -34,13 +35,15 @@ class DocumentChunk:
 
 
 class RAGSystem:
-    """Core RAG system."""
+    """Core RAG system for embedding, indexing, and retrieval."""
     
     def __init__(self, model_name: str = "all-MiniLM-L6-v2", embedding_dim: int = 384):
         print(f"loading embedding model: {model_name}")
-        # load sentence transformer for text embeddings
+
+        # Load sentence transformer for text embeddings
         self.embedding_model = SentenceTransformer(model_name, device='cpu')
         self.embedding_dim = embedding_dim
+
         # FAISS index for vector search
         self.index = None
         self.documents: List[DocumentChunk] = []
@@ -70,8 +73,8 @@ class RAGSystem:
     
     def _infer_section_from_content(self, text: str) -> str:
         """
-        Infer SEC section from content using keyword matching.
-        AI-generated: keyword lists and scoring logic.
+        If the filing did not include pre-parsed sections infer the SEC section 
+        by keyword scoring. AI-generated heuristic.
         """
         text_lower = text.lower()
         
@@ -103,7 +106,7 @@ class RAGSystem:
     
     def add_sec_filings(self, filings: List[Dict]):
         """
-        Add SEC filings to document store. AI-generated: fallback logic and section extraction handling.
+        Extract sections from SEC filings, chunk them, and store them (embedded into FAISS).
         """
         for filing_idx, filing in enumerate(filings):
             content = filing.get('content', '')
@@ -155,7 +158,7 @@ class RAGSystem:
                 else:
                     print(f"warning: manual extraction failed")
 
-            # chunk sections into index
+            # Chunk sections into index
             if sections_extracted:
                 print(f"\nchunking sections into rag index")
                 section_chunk_counts = {}
@@ -214,8 +217,7 @@ class RAGSystem:
     
     def add_financial_metrics(self, metrics_data: Dict):
         """
-        Add financial metrics (Finnhub) to document store.
-        Generated with help of AI assistance.
+        Add standalone financial metrics (e.g., Finnhub KPI descriptions).
         """
         if len(self.documents) >= self.max_documents:
             print("document limit reached")
@@ -232,15 +234,17 @@ class RAGSystem:
         self.documents.append(doc)
     
     def build_index(self):
-        """Build FAISS index from documents."""
+        """Convert all DocumentChunks into vector embeddings and load them into FAISS."""
         if not self.documents:
             print("no documents to index")
             return
         
         print(f"building index for {len(self.documents)} chunks...")
         
-        # generate embeddings for all document chunks
+        # Generate embeddings for all document chunks
         texts = [doc.text for doc in self.documents]
+
+        # Embed in batches for memory safety
         batch_size = 32
         all_embeddings = []
         
@@ -253,9 +257,10 @@ class RAGSystem:
         
         embeddings = np.vstack(all_embeddings)
         
-        # create FAISS index for vector similarity search
+        # Create cosine-similarity-based FAISS index
         self.index = faiss.IndexFlatL2(self.embedding_dim)
-        # normalize for cosine similarity
+        
+        # Normalize embeddings to use cosine similarity
         faiss.normalize_L2(embeddings)
         self.index.add(embeddings.astype('float32'))
         
@@ -267,22 +272,23 @@ class RAGSystem:
         clear_memory()
     
     def retrieve(self, query: str, top_k: int = 5) -> List[Tuple[DocumentChunk, float]]:
-        """Retrieve top-k most relevant chunks using cosine similarity."""
+        """Retrieve the most relevant chunks for a user query using FAISS similarity search."""
         if not self.index_built:
             raise ValueError("index not built, call build_index() first")
         if self.index is None:
             raise ValueError("index not built, call build_index() first")
         
-        # generate query embedding
+        # Embed query
         query_embedding = self.embedding_model.encode([query], convert_to_numpy=True)
-        # normalize for cosine similarity
+
+        # Normalize for cosine similarity
         faiss.normalize_L2(query_embedding)
         
-        # search for most similar document vectors
+        # FAISS search (search for most similar document vectors
         query_vec = query_embedding.astype('float32')
         distances, indices = self.index.search(query_vec, top_k)
         
-        # convert distances to similarity scores
+        # Convert L2 distance to cosine similarity score
         results = []
         for distance, idx in zip(distances[0], indices[0]):
             if idx >= len(self.documents):
@@ -300,8 +306,8 @@ class RAGSystem:
                                      min_coverage: float = 0.3,
                                      ensure_all_sections: bool = False) -> Tuple[str, List[Dict]]:
         """
-        Retrieve context with citations. Adaptive top_k calculation and balanced section sampling.
-        AI-generated: adaptive retrieval logic, section balancing, and logging.
+        Retrieve the most relevant chunks for a query, optionally balance SEC sections, 
+        and return a clean citation-ready context block for the LLM.
         """
         if top_k is None:
             if source_types:
@@ -378,7 +384,7 @@ class RAGSystem:
 
             print(f"total context: {total_chars:,} chars from {len(retrieved)} chunks")
 
-            # coverage analysis
+            # Coverage analysis (AI-generated diagnostic analysis)
             print(f"coverage:")
             for section in section_breakdown.keys():
                 section_docs = [d for d in self.documents if hasattr(d, 'section') and d.section == section]
@@ -419,6 +425,7 @@ class RAGSystem:
             
             context_parts.append(f"{citation_id} [{source_label}] {truncated_text}")
             
+            # Citation dictionary assembly (AI-generated)
             citations.append({
                 'id': i + 1,
                 'text': doc.text[:400] + "..." if len(doc.text) > 400 else doc.text,
@@ -437,40 +444,8 @@ class RAGSystem:
         context = "\n\n".join(context_parts)
         return context, citations
     
-    def get_definitions_for_text(self, text: str, max_terms: int = 5) -> List[Dict]:
-        """
-        Find relevant definitions for terms in text.
-        AI-generated: definition matching logic.
-        """
-        definition_docs = [d for d in self.documents if d.source_type == 'definition']
-        if not definition_docs:
-            return []
-        
-        text_lower = text.lower()
-        scored = []
-        
-        for doc in definition_docs:
-            if doc.term_name:
-                term_lower = doc.term_name.lower()
-                score = 0
-                for word in term_lower.split():
-                    if len(word) > 3 and word in text_lower:
-                        score += text_lower.count(word)
-                
-                if score > 0:
-                    scored.append((doc, score))
-        
-        scored.sort(key=lambda x: x[1], reverse=True)
-        
-        return [{
-            'term': doc.term_name,
-            'definition': doc.text,
-            'source': doc.source_name,
-            'url': doc.source_url
-        } for doc, _ in scored[:max_terms]]
-    
     def clear(self):
-        """Clear documents and free memory."""
+        """Reset RAG system (used when loading new companies)."""
         self.documents = []
         self.index = None
         self.index_built = False

@@ -1,6 +1,6 @@
 """
 This file loads pre-trained model weights from fine-tuning DistilBERT model on the Financial PhraseBank dataset.
-I conducted fine-tuning on Google Colab with GPU (results documented in notebooks/DistillBertTraining.ipynb).
+I conducted fine-tuning on Google Colab with GPU (results documented in notebooks/sentiment_analysis_training).
 """
 import os
 import torch
@@ -65,7 +65,7 @@ class SentimentClassifier:
             all_probs = torch.softmax(logits, dim=-1)
             probs = all_probs[0]
             
-            # predicted label
+            # Predicted label
             pred_id = torch.argmax(logits, dim=-1).item()
         
         return {
@@ -84,7 +84,7 @@ class SentimentClassifier:
         if not texts:
             return []
         
-        # tokenize batch
+        # Tokenize batch
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",
