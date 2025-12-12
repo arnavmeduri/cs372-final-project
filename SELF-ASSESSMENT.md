@@ -6,7 +6,7 @@
 - Solo project completed by me (Arnav Meduri). 
 
 **Used sentence embeddings for semantic similarity or retrieval (5 pts)**
-- Used all-MiniLM-L6-v2 sentence embeddings for semantic retrieval in RAG system. See `src/rag_system.py` lines 39-42 (model initialization) and lines 233-262 (`build_index()` method using FAISS similarity search).
+- Used all-MiniLM-L6-v2 sentence embeddings for semantic retrieval in RAG system. See `src/rag_system.py` lines 40-44 (model initialization) and lines 236-265 (`build_index()` method using FAISS similarity search).
 
 **Made API calls to state-of-the-art model (GPT-4, Claude, Gemini) with meaningful integration into your system (5 pts)**
 - Integrated GPT-4.1 via Duke AI Gateway for educational report generation. See `src/clients/duke_gateway_model.py` lines 40-120 (`analyze_with_context()` method) and `src/finbrief.py` lines 178-223 (Duke Gateway model loading and integration).
@@ -15,16 +15,16 @@
 - Built RAG system retrieving from SEC EDGAR filings (10-K, 10-Q) with GPT-4.1 generation. Document retrieval in `src/rag_system.py` (FAISS indexing and semantic search), SEC filing integration in `src/clients/edgartools_client.py`, and generation in `src/clients/duke_gateway_model.py`. Full pipeline in `src/finbrief.py` (lines 1241-1550).
 
 **Applied prompt engineering with evaluation of multiple prompt designs (3 pts)**
-- Engineered separate prompts for RAG mode (`config/prompts.md` lines 11-23 for system instructions, lines 137-183 for rich analysis prompt) and No-RAG mode (`config/prompts_no_rag.md` lines 13-19 for system instructions, lines 23-100 for rich analysis prompt). See `docs/examples.md` for side-by-side qualitative comparison of example reports. 
+- Engineered separate prompts for RAG mode (`config/prompts.md` lines 12-24 for system instructions, lines 138-183 for rich analysis prompt) and No-RAG mode (`config/prompts_no_rag.md` lines 13-19 for system instructions, lines 23-100 for rich analysis prompt). See `docs/examples.md` for side-by-side qualitative comparison of example reports. 
 
 **Collected or constructed original dataset through substantial engineering effort with documented methodology (10 pts)**
-- Constructed dataset from SEC EDGAR filings API and Finnhub financial metrics API with substantial preprocessing for RAG pipeline. SEC filing retrieval and section extraction in `src/clients/edgartools_client.py` (lines 45-150 for filing retrieval, section parsing) and `src/clients/sec_edgar_client.py`. Section validation and quality filtering in `src/utils/section_validator.py` (lines 25-200). Financial metrics collection and formatting in `src/clients/finnhub_client.py` (lines 80-180). Data chunking and indexing for FAISS in `src/rag_system.py` (lines 50-90 for chunking, lines 233-262 for index building). Complete pipeline orchestration in `src/finbrief.py` (lines 1104-1213).
+- Constructed dataset from SEC EDGAR filings API and Finnhub financial metrics API with substantial preprocessing for RAG pipeline. SEC filing retrieval and section extraction in `src/clients/edgartools_client.py` (lines 45-150 for filing retrieval, section parsing) and `src/clients/sec_edgar_client.py`. Section validation and quality filtering in `src/utils/section_validator.py` (lines 25-200). Financial metrics collection and formatting in `src/clients/finnhub_client.py` (lines 80-180). Data chunking and indexing for FAISS in `src/rag_system.py` (lines 50-90 for chunking, lines 236-265 for index building). Complete pipeline orchestration in `src/finbrief.py` (lines 1104-1213).
 
 **Fine-tuned pretrained model on your dataset (5 pts)**
 - Fine-tuned DistilBERT on Financial PhraseBank for financial sentiment classification. Training implementation in `notebooks/sentiment_analysis_training.ipynb` cells 8-12 (training loop), with final validation accuracy of 93.05%. Model weights saved in `models/`.
 
 **Built multi-stage ML pipeline connecting outputs of one model to inputs of another (7 pts)**
-- Built multi-stage pipeline: (1) MiniLM embeddings convert text to vectors (`src/rag_system.py` lines 39-42, 233-262), (2) FAISS similarity search retrieves relevant chunks (`src/rag_system.py` lines 268-296), (3) DistilBERT analyzes sentiment of retrieved chunks (`src/sentiment_classifier.py` lines 36-80), (4) GPT-4.1 generates reports using retrieved context and sentiment analysis (`src/clients/duke_gateway_model.py` lines 40-120). Complete pipeline in `src/finbrief.py` lines 1171-1360 showing data flow: SEC filings → embeddings → FAISS retrieval → sentiment analysis → LLM generation.
+- Built multi-stage pipeline: (1) MiniLM embeddings convert text to vectors (`src/rag_system.py` lines 40-44, 236-265), (2) FAISS similarity search retrieves relevant chunks (`src/rag_system.py` lines 274-298), (3) DistilBERT analyzes sentiment of retrieved chunks (`src/sentiment_classifier.py` lines 36-80), (4) GPT-4.1 generates reports using retrieved context and sentiment analysis (`src/clients/duke_gateway_model.py` lines 40-120). Complete pipeline in `src/finbrief.py` lines 1171-1360 showing data flow: SEC filings → embeddings → FAISS retrieval → sentiment analysis → LLM generation.
 
 **Modular code design with reusable functions and classes rather than monolithic scripts (3 pts)**
 - Modular architecture with separate classes: `RAGSystem` (`src/rag_system.py`), `SentimentClassifier` (`src/sentiment_classifier.py`), `DukeGatewayModel` (`src/clients/duke_gateway_model.py`), `EdgarToolsClient` (`src/clients/edgartools_client.py`), `FinnhubClient` (`src/clients/finnhub_client.py`).
