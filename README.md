@@ -25,7 +25,8 @@ See `SETUP.md` for comprehensive setup instructions, API key configuration, and 
 
 ## Video Links
 
-- **Project Videos:** [https://drive.google.com/drive/folders/145TbuL4B_M3MqTBJTfBxpx0UDz7skKBy?usp=sharing](https://drive.google.com/drive/folders/145TbuL4B_M3MqTBJTfBxpx0UDz7skKBy?usp=sharing)
+- **Demonstration Video:** [https://drive.google.com/file/d/1B_6WUbEig7w1EKNMMvf8SMGzNHJ5YBqF/view?usp=sharing](https://drive.google.com/file/d/1B_6WUbEig7w1EKNMMvf8SMGzNHJ5YBqF/view?usp=sharing)
+- **Technical Walkthrough Video:** [https://drive.google.com/file/d/1ATQwj02DEbr2SMKHDwKyUnnxlPnsbrsb/view?usp=sharing](https://drive.google.com/file/d/1ATQwj02DEbr2SMKHDwKyUnnxlPnsbrsb/view?usp=sharing)
 
 ## Evaluation
 
